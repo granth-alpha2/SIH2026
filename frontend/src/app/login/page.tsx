@@ -1,0 +1,5 @@
+import Link from "next/link";
+
+export default function LoginPage() {
+  return <main className="auth-page"><section className="auth-panel" aria-labelledby="login-title"><Link className="brand" href="/"><span className="brand-mark">✳</span><span>agriprofit</span></Link><p className="eyebrow">FARMER LOGIN</p><h1 id="login-title">Sign in to your farm workspace</h1><p className="subhead">Phone verification will be available when authentication is connected.</p><form className="auth-form"><label htmlFor="phone">Mobile number</label><input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="Enter your mobile number" disabled /><button className="primary-button full" type="submit" disabled>Send OTP</button></form><p className="form-note" role="status">Authentication is not configured in this development build.</p><Link className="text-button" href="/">Continue to workspace preview</Link></section></main>;
+}
