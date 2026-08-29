@@ -7,9 +7,12 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["frontend/src/*"],
-      "@agriprofit/shared": ["packages/shared/src/index.ts"],
+      "@agriprofit/shared": ["packages/shared/types/index.ts"],
       "@agriprofit/shared/types": ["packages/shared/types/index.ts"],
+      "@agriprofit/shared/*": ["packages/shared/*"],
       "@agriprofit/api-client": ["packages/api-client/src/index.ts"],
+      "@agriprofit/ui": ["packages/ui/components/index.ts"],
+      "@agriprofit/ui/*": ["packages/ui/*"],
       "@agriprofit/services/*": ["services/*"]
     },
     "types": ["node"],
@@ -20,7 +23,7 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "checkJs": false,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": false,
@@ -37,6 +40,8 @@
   ],
   "exclude": [
     "node_modules",
+    "**/node_modules",
+    ".next",
     "frontend/.next",
     "dist",
     "build",

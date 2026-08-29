@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -20,9 +20,12 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@agriprofit/shared": ["../packages/shared/src/index.ts"],
+      "@agriprofit/shared": ["../packages/shared/types/index.ts"],
       "@agriprofit/shared/types": ["../packages/shared/types/index.ts"],
-      "@agriprofit/api-client": ["../packages/api-client/src/index.ts"]
+      "@agriprofit/shared/*": ["../packages/shared/*"],
+      "@agriprofit/api-client": ["../packages/api-client/src/index.ts"],
+      "@agriprofit/ui": ["../packages/ui/components/index.ts"],
+      "@agriprofit/ui/*": ["../packages/ui/*"]
     }
   },
   "include": [
@@ -33,5 +36,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", ".next"]
 }
