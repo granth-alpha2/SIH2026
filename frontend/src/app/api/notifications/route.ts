@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const items = await listNotifications();
     return NextResponse.json({ success: true, notifications: items });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ success: false, error: { code: 'NOTIFICATION_LIST_FAILED', message: 'Could not list notifications' } }, { status: 503 });
   }
 }
@@ -20,15 +20,15 @@ export async function POST(request: Request) {
     type: String(body.type),
     title: String(body.title),
     body: body.body ? String(body.body) : '',
-    data: body.data ?? null,
-    level: body.level ?? 'info',
+    data: body.data && typeof body.data === 'object' ? body.data : null,
+    level: body.level ? String(body.level) : 'info',
     read: false,
     createdAt: new Date().toISOString(),
   };
   try {
     await saveNotification(n);
     return NextResponse.json({ success: true, notification: n }, { status: 201 });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ success: false, error: { code: 'NOTIFICATION_SAVE_FAILED', message: 'Could not save notification' } }, { status: 503 });
   }
 }
@@ -41,7 +41,7 @@ export async function PATCH(request: Request) {
   try {
     await markNotificationRead(String(body.id), Boolean(body.read));
     return NextResponse.json({ success: true });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ success: false, error: { code: 'NOTIFICATION_UPDATE_FAILED', message: 'Could not update notification' } }, { status: 503 });
   }
 }

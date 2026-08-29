@@ -1,5 +1,5 @@
-import UnavailableFeature from "../components/UnavailableFeature";
+import CropPlannerPage from "../recommendations/plan/page";
 
 export default function CropPlanPage() {
-  return <UnavailableFeature eyebrow="CROP PLAN" title="Crop plan" description="Review an accepted plan and its lifecycle milestones." action={{ label: "Set up a farm", href: "/farms/new" }} />;
+  return <CropPlannerPage />;
 }

@@ -1,110 +1,214 @@
 "use client";
-import {useEffect, useState, useRef} from "react";
 
-type Notification = { id:string; type:string; title:string; body:string; data?:any; level?:string; read:boolean; createdAt:string };
+import { useEffect, useState, useRef, useCallback } from "react";
+import AppShell from "../components/AppShell";
 
-async function fetchNotifications(){
-  const res = await fetch('/api/notifications');
-  if(!res.ok) return [];
-  const js = await res.json();
-  return js.notifications as Notification[];
+type NotificationItem = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown> | null;
+  level?: string;
+  read: boolean;
+  createdAt: string;
+};
+
+async function fetchNotifications(): Promise<NotificationItem[]> {
+  try {
+    const res = await fetch("/api/notifications");
+    if (!res.ok) return [];
+    const js = await res.json();
+    return (js.notifications || []) as NotificationItem[];
+  } catch {
+    return [];
+  }
 }
 
-export default function NotificationsPage(){
-  const [items, setItems] = useState<Notification[]>([]);
+export default function NotificationsPage() {
+  const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const seenRef = useRef<Record<string,true>>({});
+  const seenRef = useRef<Record<string, boolean>>({});
 
-  useEffect(()=>{
+  const refreshList = useCallback(async () => {
+    const data = await fetchNotifications();
+    setItems(data);
+    data.forEach((x) => {
+      seenRef.current[x.id] = true;
+    });
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
-    async function load(){
+    async function load() {
       setLoading(true);
-      const n = await fetchNotifications();
-      if(!mounted) return;
-      setItems(n);
+      const data = await fetchNotifications();
+      if (!mounted) return;
+      setItems(data);
       setLoading(false);
-      n.forEach(x=> seenRef.current[x.id]=true);
+      data.forEach((x) => {
+        seenRef.current[x.id] = true;
+      });
     }
     load();
-    const iv = setInterval(async ()=>{
-      const n = await fetchNotifications();
-      // detect new items
-      const newOnes = n.filter(x=>!seenRef.current[x.id]);
-      if(newOnes.length){
-        // browser notification permission
-        if(typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'){
-          newOnes.slice(0,3).forEach(nf=> new Notification(nf.title, { body: nf.body }));
+
+    const interval = setInterval(async () => {
+      const latest = await fetchNotifications();
+      const newItems = latest.filter((x) => !seenRef.current[x.id]);
+      if (newItems.length > 0) {
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+          newItems.slice(0, 3).forEach((n) => new Notification(n.title, { body: n.body }));
         }
-        newOnes.forEach(x=> seenRef.current[x.id]=true);
+        newItems.forEach((x) => {
+          seenRef.current[x.id] = true;
+        });
       }
-      setItems(n);
-    }, 10000);
-    return ()=>{ mounted=false; clearInterval(iv); };
-  },[]);
+      setItems(latest);
+    }, 12000);
 
-  async function markRead(id:string, read:boolean){
-    await fetch('/api/notifications', { method:'PATCH', body: JSON.stringify({ id, read }), headers:{ 'content-type':'application/json' } });
-    setItems(prev => prev.map(p=> p.id===id? {...p, read}:p));
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  async function markRead(id: string, read: boolean) {
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, read }),
+    });
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, read } : item)));
   }
 
-  async function markAllRead(){
-    await Promise.all(items.filter(i=>!i.read).map(i=> fetch('/api/notifications', { method:'PATCH', body: JSON.stringify({ id:i.id, read:true }), headers:{ 'content-type':'application/json' } } )));
-    setItems(prev => prev.map(p=> ({...p, read:true})));
+  async function markAllRead() {
+    const unread = items.filter((item) => !item.read);
+    await Promise.all(
+      unread.map((item) =>
+        fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: item.id, read: true }),
+        })
+      )
+    );
+    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
   }
 
-  async function createMock(type:string){
-    const body = { type, title: `${type} alert`, body: `This is a mock ${type} notification for testing.`, data:{} };
-    await fetch('/api/notifications', { method:'POST', body: JSON.stringify(body), headers:{ 'content-type':'application/json' } });
-    const n = await fetchNotifications();
-    setItems(n);
+  async function createMockAlert(type: string) {
+    const alertTitles: Record<string, string> = {
+      irrigation: "Palewa Irrigation Reminder",
+      weather: "Thunderstorm & Rain Alert",
+      disease: "Rust Spore Advisory",
+      market: "Wheat Mandi Price Spike (+₹110/q)",
+      "crop-stage": "Flowering Stage Reached",
+    };
+    const alertBodies: Record<string, string> = {
+      irrigation: "Optimal soil moisture window is approaching in Bathinda field section 1.",
+      weather: "IMD forecast predicts 24mm precipitation over the next 48 hours. Postpone chemical spray.",
+      disease: "Warm humid conditions increase Yellow Rust vulnerability. Inspect crop leaf undersides.",
+      market: "Bathinda APMC modal price reached ₹2,380/q today, exceeding current MSP by 4.6%.",
+      "crop-stage": "Wheat is entering flowering stage. Ensure critical moisture and potassium availability.",
+    };
+
+    const body = {
+      type,
+      title: alertTitles[type] || `${type} notification`,
+      body: alertBodies[type] || `Advisory notification for ${type}.`,
+      level: type === "weather" || type === "disease" ? "warning" : "info",
+    };
+
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    await refreshList();
   }
 
   return (
-    <main className="p-4 max-w-3xl mx-auto">
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Notifications</h1>
-          <p className="text-sm text-gray-600">In-app alerts for irrigation, weather, disease risk, market, and crop stages.</p>
-        </div>
-        <div className="space-x-2">
-          <button onClick={()=>{ if('Notification' in window && Notification.permission !== 'granted') Notification.requestPermission(); }} className="px-3 py-2 border rounded">Enable browser</button>
-          <button onClick={markAllRead} className="px-3 py-2 bg-green-600 text-white rounded">Mark all read</button>
-        </div>
-      </header>
+    <AppShell pageTitle="Notifications">
+      <section className="page-wrap feature-page">
+        <header className="feature-header flex justify-between items-start flex-wrap gap-4">
+          <div>
+            <p className="eyebrow">ALERT CENTER</p>
+            <h1>Notifications & Advisory Feed</h1>
+            <p className="subhead">Operational reminders for irrigation timing, weather hazards, market moves, and crop lifecycle stages.</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined" && "Notification" in window && Notification.permission !== "granted") {
+                  Notification.requestPermission();
+                }
+              }}
+              className="text-button"
+            >
+              Enable Browser Alerts
+            </button>
+            <button type="button" onClick={markAllRead} className="primary-button">
+              Mark all as read
+            </button>
+          </div>
+        </header>
 
-      <section className="mb-4">
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={()=>createMock('irrigation')} className="px-2 py-1 border rounded text-sm">Mock irrigation</button>
-          <button onClick={()=>createMock('weather')} className="px-2 py-1 border rounded text-sm">Mock weather</button>
-          <button onClick={()=>createMock('disease')} className="px-2 py-1 border rounded text-sm">Mock disease</button>
-          <button onClick={()=>createMock('market')} className="px-2 py-1 border rounded text-sm">Mock market</button>
-          <button onClick={()=>createMock('crop-stage')} className="px-2 py-1 border rounded text-sm">Mock crop-stage</button>
-        </div>
-      </section>
+        <section className="panel mb-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Generate Test Advisory Alerts</p>
+          <div className="flex gap-2 flex-wrap">
+            <button type="button" onClick={() => createMockAlert("irrigation")} className="nav-item border px-3 py-1.5 rounded text-xs">
+              + Irrigation Alert
+            </button>
+            <button type="button" onClick={() => createMockAlert("weather")} className="nav-item border px-3 py-1.5 rounded text-xs">
+              + Weather Warning
+            </button>
+            <button type="button" onClick={() => createMockAlert("disease")} className="nav-item border px-3 py-1.5 rounded text-xs">
+              + Pest/Disease Alert
+            </button>
+            <button type="button" onClick={() => createMockAlert("market")} className="nav-item border px-3 py-1.5 rounded text-xs">
+              + Mandi Price Movement
+            </button>
+            <button type="button" onClick={() => createMockAlert("crop-stage")} className="nav-item border px-3 py-1.5 rounded text-xs">
+              + Crop Stage Milestone
+            </button>
+          </div>
+        </section>
 
-      <section className="space-y-2">
-        {loading && <div>Loading...</div>}
-        {items.map(it=> (
-          <article key={it.id} className={`p-3 bg-white rounded shadow-sm flex justify-between ${it.read? 'opacity-60':''}`}>
-            <div>
-              <div className="flex items-center gap-2">
-                <strong>{it.title}</strong>
-                <span className="text-xs text-gray-500">{new Date(it.createdAt).toLocaleString()}</span>
-                {!it.read && <span className="ml-2 text-xs text-white bg-red-600 px-2 py-0.5 rounded">new</span>}
+        <section className="space-y-3">
+          {loading && <div className="panel text-center py-6 text-gray-500">Loading alerts...</div>}
+          {!loading && items.length === 0 && (
+            <div className="panel text-center py-8 text-gray-500">
+              <p className="text-base font-medium">No notifications right now.</p>
+              <p className="text-xs mt-1">Operational alerts will appear here as weather conditions and crop stages evolve.</p>
+            </div>
+          )}
+          {items.map((item) => (
+            <article
+              key={item.id}
+              className={`panel flex justify-between items-start gap-4 transition-opacity ${item.read ? "opacity-70 bg-gray-50/50" : "border-green-600/30"}`}
+            >
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs px-2 py-0.5 rounded font-medium ${item.level === "warning" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
+                    {item.type.toUpperCase()}
+                  </span>
+                  <strong className="text-sm font-semibold">{item.title}</strong>
+                  {!item.read && <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 bg-red-600 text-white rounded">NEW</span>}
+                  <span className="text-xs text-gray-400 ml-auto">{new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {new Date(item.createdAt).toLocaleDateString()}</span>
+                </div>
+                <p className="text-xs text-gray-600 mt-2 leading-relaxed">{item.body}</p>
               </div>
-              <div className="text-sm text-gray-700 mt-1">{it.body}</div>
-            </div>
-            <div className="flex flex-col justify-between">
-              <button onClick={()=>markRead(it.id, !it.read)} className="text-sm text-green-700 underline">{it.read? 'Mark unread':'Mark read'}</button>
-            </div>
-          </article>
-        ))}
+              <button
+                type="button"
+                onClick={() => markRead(item.id, !item.read)}
+                className="text-xs font-medium text-emerald-700 hover:underline whitespace-nowrap pt-1"
+              >
+                {item.read ? "Mark unread" : "Mark read"}
+              </button>
+            </article>
+          ))}
+        </section>
       </section>
-    </main>
+    </AppShell>
   );
-}
-import UnavailableFeature from "../components/UnavailableFeature";
-
-export default function NotificationsPage() {
-  return <UnavailableFeature eyebrow="NOTIFICATIONS" title="Notifications" description="Notifications will appear here after crop plans and notification rules are connected." />;
 }

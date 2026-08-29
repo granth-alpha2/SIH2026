@@ -1,127 +1,250 @@
 "use client";
-import {useEffect, useMemo, useState} from "react";
 
-type Allocation = { name:string; percent:number; score:number; expectedRevenue:number; estimatedCost:number; explanation:string };
-type Accepted = { overall:any; allocations:Allocation[]; sowingDate?:string; region?:string };
+import { useMemo, useState } from "react";
+import AppShell from "../../components/AppShell";
+import { generateCropLifecyclePlan, type CropLifecyclePlan } from "@/lib/lifecycle-planner";
 
-const fallback:Accepted = JSON.parse(JSON.stringify({
-  overall: { title: "Balanced Maize + Beans Mix", explanation: "Balanced mix to spread risk and improve soil.", },
-  allocations: [ { name: "Maize", percent:60, score:90, expectedRevenue:26000, estimatedCost:9500, explanation: "High yield and demand." }, { name: "Beans", percent:30, score:82, expectedRevenue:12000, estimatedCost:6000, explanation: "Soil improvement and steady market." } ],
-  sowingDate: new Date().toISOString(),
-  region: 'default'
-}));
-
-function addDays(d:Date, days:number){ const t = new Date(d); t.setDate(t.getDate()+days); return t; }
-
-const durations:{[crop:string]:{germination:number,vegetative:number,flowering:number,maturation:number,harvestPrep:number}} = {
-  Maize: {germination:7, vegetative:50, flowering:30, maturation:30, harvestPrep:7},
-  Beans: {germination:6, vegetative:40, flowering:25, maturation:20, harvestPrep:7},
-  Default: {germination:7, vegetative:45, flowering:28, maturation:25, harvestPrep:7}
+type Allocation = {
+  name: string;
+  percent: number;
+  score: number;
+  expectedRevenue: number;
+  estimatedCost: number;
+  explanation: string;
 };
 
-function computeStages(cropName:string, sowDateStr:string){
-  const s = new Date(sowDateStr);
-  const spec = durations[cropName] || durations.Default;
-  const sow = s;
-  const germ = addDays(sow, spec.germination);
-  const veg = addDays(germ, spec.vegetative);
-  const flow = addDays(veg, spec.flowering);
-  const mat = addDays(flow, spec.maturation);
-  const prep = addDays(mat, spec.harvestPrep);
-  const harvest = addDays(prep, 0);
-  return [
-    { key:'sowing', label:'Sowing', start:sow, end:germ },
-    { key:'germination', label:'Germination', start:germ, end:veg },
-    { key:'vegetative', label:'Vegetative growth', start:veg, end:flow },
-    { key:'flowering', label:'Flowering', start:flow, end:mat },
-    { key:'harvestPrep', label:'Harvest preparation', start:mat, end:prep },
-    { key:'harvest', label:'Harvest', start:prep, end:harvest },
-  ];
-}
+type AcceptedPlan = {
+  overall: {
+    title: string;
+    explanation: string;
+  };
+  allocations: Allocation[];
+  sowingDate?: string;
+  region?: string;
+};
 
-function fmt(d:Date){ return d.toLocaleDateString(); }
+const defaultPlan: AcceptedPlan = {
+  overall: {
+    title: "Balanced Wheat + Mustard + Chickpea Allocation",
+    explanation: "Multi-crop allocation balancing high-MSP wheat with low-water oilseeds and nitrogen-fixing pulses.",
+  },
+  allocations: [
+    { name: "Wheat", percent: 55, score: 94, expectedRevenue: 82000, estimatedCost: 31000, explanation: "Guaranteed MSP floor protection." },
+    { name: "Mustard", percent: 30, score: 88, expectedRevenue: 44000, estimatedCost: 17500, explanation: "High mandi demand and water efficiency." },
+    { name: "Chickpea", percent: 15, score: 82, expectedRevenue: 16000, estimatedCost: 10000, explanation: "Improves soil health and nitrogen levels." },
+  ],
+  sowingDate: new Date().toISOString(),
+  region: "Punjab - Bathinda (Trans-Gangetic Plains)",
+};
 
-export default function CropPlannerPage(){
-  const [accepted, setAccepted] = useState<Accepted | null>(null);
-  const [sowing, setSowing] = useState<string | undefined>(undefined);
-  const [region, setRegion] = useState<string>('default');
+export default function CropPlannerPage() {
+  const [sowingDate, setSowingDate] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("acceptedRecommendation");
+        if (raw) {
+          const parsed = JSON.parse(raw) as AcceptedPlan;
+          return parsed.sowingDate || new Date().toISOString();
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return new Date().toISOString();
+  });
 
-  useEffect(()=>{
-    try{
-      const raw = localStorage.getItem('acceptedRecommendation');
-      if(raw){ const parsed = JSON.parse(raw); setAccepted(parsed); setSowing(parsed.sowingDate || parsed.acceptedAt || new Date().toISOString()); setRegion(parsed.region || 'default'); return; }
-    }catch(e){}
-    setAccepted(fallback); setSowing(fallback.sowingDate);
-  },[]);
+  const [region, setRegion] = useState<string>("Punjab - Bathinda (Trans-Gangetic Plains)");
+  const [selectedCropIndex, setSelectedCropIndex] = useState<number>(0);
 
-  const plans = useMemo(()=>{
-    if(!accepted || !sowing) return [];
-    return accepted.allocations.map(a=>({ crop:a.name, stages: computeStages(a.name, sowing), explanation:a.explanation }));
-  },[accepted, sowing]);
+  const accepted = useMemo<AcceptedPlan>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("acceptedRecommendation");
+        if (raw) {
+          return JSON.parse(raw) as AcceptedPlan;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return defaultPlan;
+  }, []);
 
-  if(!accepted) return <div className="p-4">Loading...</div>;
+  const activeCropAlloc = accepted.allocations[selectedCropIndex] || accepted.allocations[0];
+
+  const plan: CropLifecyclePlan = useMemo(() => {
+    return generateCropLifecyclePlan(activeCropAlloc.name, sowingDate, region);
+  }, [activeCropAlloc.name, sowingDate, region]);
 
   return (
-    <main className="p-4 max-w-3xl mx-auto">
-      <header className="mb-4">
-        <h1 className="text-2xl font-semibold">Crop Lifecycle Planner</h1>
-        <p className="text-sm text-gray-600">Schedules are advisory. Consult local agronomists before acting.</p>
-      </header>
+    <AppShell pageTitle="Crop lifecycle plan">
+      <section className="page-wrap feature-page max-w-5xl mx-auto space-y-4">
+        <header className="feature-header flex justify-between items-start flex-wrap gap-4 mb-2">
+          <div>
+            <p className="eyebrow">ACTIVE AGRONOMIC PLAN</p>
+            <h1>Crop Lifecycle Timeline & Guidance</h1>
+            <p className="subhead">
+              Stage-by-stage operations schedule calibrated to your sowing date and ICAR package-of-practices.
+            </p>
+          </div>
+        </header>
 
-      <section className="bg-white p-3 rounded mb-4">
-        <label className="block text-sm text-gray-700">Approximate sowing date</label>
-        <input type="date" value={sowing ? new Date(sowing).toISOString().slice(0,10) : ''} onChange={(e)=>setSowing(new Date(e.target.value).toISOString())} className="mt-1 p-2 border rounded w-full" />
-        <label className="block text-sm text-gray-700 mt-3">Region</label>
-        <select value={region} onChange={(e)=>setRegion(e.target.value)} className="mt-1 p-2 border rounded w-full">
-          <option value="default">Default region</option>
-          <option value="tropical">Tropical</option>
-          <option value="temperate">Temperate</option>
-        </select>
-      </section>
-
-      <section className="space-y-4">
-        {plans.map((p, idx)=>{
-          const first = p.stages[0].start;
-          const last = p.stages[p.stages.length-1].end;
-          const totalDays = Math.round((last.getTime()-first.getTime())/(1000*60*60*24)) || 1;
-          return (
-            <div key={p.crop} className="bg-white p-3 rounded shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{p.crop}</div>
-                  <div className="text-xs text-gray-500">{fmt(first)} — {fmt(last)} ({totalDays} days)</div>
-                </div>
-                <div className="text-sm text-gray-600">Advisory</div>
-              </div>
-
-              <div className="mt-3 space-y-2">
-                {p.stages.map(s=>{
-                  const days = Math.round((s.end.getTime()-s.start.getTime())/(1000*60*60*24)) || 1;
-                  const widthPct = Math.round((days/totalDays)*100);
-                  return (
-                    <div key={s.key}>
-                      <div className="flex justify-between text-sm text-gray-700">
-                        <div>{s.label}</div>
-                        <div className="text-xs text-gray-500">{fmt(s.start)} — {fmt(s.end)} • {days}d</div>
-                      </div>
-                      <div className="w-full bg-gray-100 h-3 rounded mt-1 overflow-hidden">
-                        <div style={{width:`${widthPct}%`}} className="h-3 bg-green-500/80"></div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <details className="mt-3 text-sm text-gray-700">
-                <summary className="cursor-pointer">Why this schedule?</summary>
-                <div className="mt-2">{p.explanation}. These timings are generalized and depend on variety, local climate and management.</div>
-              </details>
+        {/* Date & Region Controls */}
+        <section className="panel space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label htmlFor="sowing-date" className="block text-gray-600 font-semibold uppercase tracking-wider mb-1">
+                Approximate Sowing Date:
+              </label>
+              <input
+                id="sowing-date"
+                type="date"
+                value={sowingDate ? new Date(sowingDate).toISOString().slice(0, 10) : ""}
+                onChange={(e) => setSowingDate(new Date(e.target.value).toISOString())}
+                className="p-2 border rounded w-full bg-white font-medium text-sm"
+              />
             </div>
-          );
-        })}
-      </section>
+            <div>
+              <label htmlFor="zone-select" className="block text-gray-600 font-semibold uppercase tracking-wider mb-1">
+                Agro-Climatic Zone:
+              </label>
+              <select
+                id="zone-select"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="p-2 border rounded w-full bg-white font-medium text-sm"
+              >
+                <option value="Punjab - Bathinda (Trans-Gangetic Plains)">Punjab - Bathinda (Trans-Gangetic Plains)</option>
+                <option value="Haryana - Karnal (Trans-Gangetic Plains)">Haryana - Karnal (Trans-Gangetic Plains)</option>
+                <option value="UP - Varanasi (Middle Gangetic Plains)">UP - Varanasi (Middle Gangetic Plains)</option>
+                <option value="Maharashtra - Nashik (Western Plateau)">Maharashtra - Nashik (Western Plateau)</option>
+                <option value="MP - Indore (Central Plateau)">MP - Indore (Central Plateau)</option>
+              </select>
+            </div>
+          </div>
 
-      <footer className="mt-6 text-xs text-gray-500">This planner provides generalized schedules as advisory information, not guaranteed agronomic instructions.</footer>
-    </main>
+          {/* Multi-Crop Navigation Tabs */}
+          <div className="pt-2 border-t flex gap-2 flex-wrap items-center">
+            <span className="text-[11px] text-gray-500 font-semibold uppercase mr-1">Select Crop Plan:</span>
+            {accepted.allocations.map((alloc, idx) => (
+              <button
+                key={alloc.name}
+                type="button"
+                onClick={() => setSelectedCropIndex(idx)}
+                className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition cursor-pointer ${
+                  selectedCropIndex === idx
+                    ? "bg-emerald-800 text-white border-emerald-800 shadow-sm"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                {alloc.name} ({alloc.percent}% of land)
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Plan Header Summary Card */}
+        <section className="panel bg-gradient-to-br from-emerald-800 to-emerald-950 text-white border-0 shadow-md">
+          <div className="flex justify-between items-start flex-wrap gap-4">
+            <div>
+              <span className="text-xs uppercase tracking-wider text-emerald-300 font-semibold">Active Advisory Roadmap</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <h2 className="text-2xl font-black text-white">{plan.cropName}</h2>
+                <span className="text-xs text-emerald-200">({plan.hindiName})</span>
+              </div>
+              <p className="text-xs text-emerald-200 mt-1">
+                Agro-Climatic Zone: {plan.region} · Season: {plan.season}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-black text-white">{plan.totalDurationDays} Days</div>
+              <p className="text-xs text-emerald-300">
+                Sowing: {plan.sowingDate} → Harvest: {plan.expectedHarvestDate}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Timeline Milestones Progression */}
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+            Stage-by-Stage Agronomic Schedule ({plan.stages.length} Milestones)
+          </h2>
+
+          <div className="space-y-3">
+            {plan.stages.map((stage) => (
+              <article
+                key={stage.stageNumber}
+                className={`panel border transition ${
+                  stage.status === "active"
+                    ? "border-emerald-600 bg-emerald-50/40 shadow-sm"
+                    : stage.status === "completed"
+                    ? "border-gray-200 bg-gray-50/60 opacity-80"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                {/* Stage Header */}
+                <div className="flex justify-between items-start flex-wrap gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-emerald-800 text-white text-xs font-bold flex items-center justify-center">
+                        {stage.stageNumber}
+                      </span>
+                      <strong className="text-sm font-bold text-gray-900">{stage.stageName}</strong>
+                      <span className="text-xs text-gray-500 font-normal">({stage.hindiName})</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5 ml-8">
+                      {stage.startDate} — {stage.endDate} ({stage.durationDays} days · {stage.startDayOffset}–{stage.endDayOffset} DAS)
+                    </p>
+                  </div>
+
+                  <span
+                    className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                      stage.status === "active"
+                        ? "bg-emerald-600 text-white"
+                        : stage.status === "completed"
+                        ? "bg-gray-200 text-gray-700"
+                        : "bg-blue-50 text-blue-700 border border-blue-200"
+                    }`}
+                  >
+                    {stage.status === "active" ? "● Active Stage" : stage.status === "completed" ? "✓ Completed" : "Upcoming"}
+                  </span>
+                </div>
+
+                {/* Operations Guidance Grid */}
+                <div className="mt-3 ml-8 pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-2.5 bg-blue-50/60 border border-blue-200/80 rounded-lg">
+                    <strong className="text-blue-900 block text-[11px] uppercase mb-0.5">🚿 Irrigation Operations</strong>
+                    <p className="text-blue-950 leading-relaxed">{stage.irrigationGuidance}</p>
+                  </div>
+
+                  <div className="p-2.5 bg-emerald-50/60 border border-emerald-200/80 rounded-lg">
+                    <strong className="text-emerald-900 block text-[11px] uppercase mb-0.5">🌾 Nutrient & Fertilizer Splits</strong>
+                    <p className="text-emerald-950 leading-relaxed">{stage.fertilizerGuidance}</p>
+                  </div>
+
+                  <div className="p-2.5 bg-amber-50/60 border border-amber-200/80 rounded-lg">
+                    <strong className="text-amber-900 block text-[11px] uppercase mb-0.5">🌿 Weed Management</strong>
+                    <p className="text-amber-950 leading-relaxed">{stage.weedManagement}</p>
+                  </div>
+
+                  <div className="p-2.5 bg-rose-50/60 border border-rose-200/80 rounded-lg">
+                    <strong className="text-rose-900 block text-[11px] uppercase mb-0.5">🐛 Pest & Disease Surveillance</strong>
+                    <p className="text-rose-950 leading-relaxed">
+                      {stage.pestMonitoring} {stage.diseaseMonitoring}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* Advisory Disclaimer Notice */}
+        <section className="panel text-xs text-gray-500 bg-gray-50 border leading-relaxed">
+          <strong>Advisory Disclaimer:</strong> {plan.advisoryDisclaimer}
+        </section>
+      </section>
+    </AppShell>
   );
 }

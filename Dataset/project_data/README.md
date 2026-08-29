@@ -27,7 +27,6 @@ project_data/
 ├── processed/     # cleaned / aggregated / model-ready outputs
 ├── ml/            # AI/ML training, validation, and test sets
 ├── schemas/       # database_schema.sql + data_dictionary.md
-├── reports/       # data_integration_report.md
 └── README.md      # this file
 ```
 
