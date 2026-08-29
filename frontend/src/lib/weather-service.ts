@@ -210,12 +210,13 @@ function getRegionalBaseline(lat: number, lng: number, locationName?: string): A
  * Main Weather Fetcher: Queries Open-Meteo with caching and graceful baseline fallback
  */
 export async function getAgriWeather(
-  lat = 30.2110,
-  lng = 74.9455,
-  locationName = "Bathinda, Punjab"
+  lat = 28.6139,
+  lng = 77.2090,
+  locationName = "Regional Agro-Climatic Zone"
 ): Promise<AgriWeatherReport> {
   const roundedLat = Math.round(lat * 100) / 100;
   const roundedLng = Math.round(lng * 100) / 100;
+
   const cacheKey = `${roundedLat},${roundedLng}`;
 
   const cached = weatherCache.get(cacheKey);

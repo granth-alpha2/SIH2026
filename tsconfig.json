@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["frontend/src/*"],
+      "@agriprofit/shared": ["packages/shared/src/index.ts"],
+      "@agriprofit/shared/types": ["packages/shared/types/index.ts"],
+      "@agriprofit/api-client": ["packages/api-client/src/index.ts"],
+      "@agriprofit/services/*": ["services/*"]
+    },
+    "types": ["node"],
+    "typeRoots": [
+      "./frontend/node_modules/@types",
+      "./node_modules/@types"
+    ],
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "frontend/src/**/*",
+    "services/**/*",
+    "packages/**/*",
+    "scripts/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "frontend/.next",
+    "dist",
+    "build",
+    "coverage",
+    ".turbo"
+  ]
+}

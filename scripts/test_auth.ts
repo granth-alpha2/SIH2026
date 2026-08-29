@@ -1,7 +1,10 @@
+/// <reference types="node" />
+
 /**
  * AgriProfit — Test Suite for Authentication & Farm Mapping
  * ==========================================================
  */
+
 
 import {
   signJWT,

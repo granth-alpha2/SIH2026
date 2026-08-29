@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 /**
  * AgriProfit — Test Suite for Prompts 10, 11 & 12
  * ===============================================
@@ -6,6 +8,7 @@
  * - Deterministic Rule-Based Recommendation Engine V1 (Prompt 11)
  * - Financial Profit Simulation Engine (Prompt 12)
  */
+
 
 import {
   marketService,

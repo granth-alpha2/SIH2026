@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkRateLimit, cleanPhone, generateOtp, isValidIndianPhone } from "@/lib/auth";
+import { checkRateLimit, cleanPhone, generateOtp, isValidIndianPhone, sendSmsOtp } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -27,20 +27,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const otp = generateOtp(phone);
-  const isDev = process.env.NODE_ENV !== "production";
+  const customOtp = body?.customOtp;
+  const customMessage = body?.customMessage;
 
-  // In production, integrate with SMS Gateway (e.g., Fast2SMS, Twilio, MSG91)
-  // For local development / demo, provide the safe test OTP in response and server log
-  if (isDev) {
-    console.log(`[AgriProfit Auth] Generated OTP for +91-${phone}: ${otp}`);
-  }
+  const otp = generateOtp(phone, customOtp);
+
+  // Dispatch via configured SMS Gateway or live simulated carrier
+  const dispatchResult = await sendSmsOtp(phone, otp, customMessage);
+
+
+  const maskedPhone = `+91 ******${phone.slice(-4)}`;
+  const isLiveCarrier = dispatchResult.provider !== "simulated";
 
   return NextResponse.json({
     success: true,
-    message: `Verification code sent to +91 ${phone}`,
-    devHint: isDev ? "Development mode: enter 123456 or the code from the server console." : undefined,
-    devOtp: isDev ? otp : undefined,
+    message: isLiveCarrier
+      ? `Verification code delivered via SMS to ${maskedPhone}`
+      : `Verification code dispatched to ${maskedPhone}`,
+    otpLength: 6,
+    expiresInSeconds: 300,
+    provider: dispatchResult.provider,
+    isLiveCarrier,
   });
 }
+
+
 

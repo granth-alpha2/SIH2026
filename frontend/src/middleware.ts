@@ -5,17 +5,23 @@ import { SESSION_COOKIE_NAME, verifyJWT } from "./lib/auth";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Allow static files, Next.js internal assets, and auth APIs
+  // 1. Allow static files, Next.js internal assets, auth APIs, public assets, and health checks
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/assistant") ||
+    pathname === "/api/health" ||
     pathname === "/favicon.ico" ||
     pathname.endsWith(".svg") ||
     pathname.endsWith(".png") ||
-    pathname.endsWith(".jpg")
+    pathname.endsWith(".jpg") ||
+    pathname.endsWith(".jpeg") ||
+    pathname.endsWith(".webp") ||
+    pathname.endsWith(".ico")
   ) {
     return NextResponse.next();
   }
+
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const user = token ? await verifyJWT(token) : null;
@@ -71,4 +77,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
-

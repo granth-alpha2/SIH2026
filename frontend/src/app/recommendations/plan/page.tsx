@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import AppShell from "../../components/AppShell";
 import { generateCropLifecyclePlan, type CropLifecyclePlan } from "@/lib/lifecycle-planner";
+import { DISTRICT_MASTER } from "@/lib/geo-service";
 
 type Allocation = {
   name: string;
@@ -21,17 +22,20 @@ type AcceptedPlan = {
   allocations: Allocation[];
   sowingDate?: string;
   region?: string;
+  farmName?: string;
+  totalAcres?: number;
 };
 
 const defaultPlan: AcceptedPlan = {
   overall: {
-    title: "Balanced Wheat + Mustard + Chickpea Allocation",
-    explanation: "Multi-crop allocation balancing high-MSP wheat with low-water oilseeds and nitrogen-fixing pulses.",
+    title: "Balanced Multi-Crop Allocation",
+    explanation: "Multi-crop allocation balancing high-MSP crops with low-water oilseeds and nitrogen-fixing pulses.",
   },
   allocations: [
-    { name: "Wheat", percent: 55, score: 94, expectedRevenue: 82000, estimatedCost: 31000, explanation: "Guaranteed MSP floor protection." },
-    { name: "Mustard", percent: 30, score: 88, expectedRevenue: 44000, estimatedCost: 17500, explanation: "High mandi demand and water efficiency." },
-    { name: "Chickpea", percent: 15, score: 82, expectedRevenue: 16000, estimatedCost: 10000, explanation: "Improves soil health and nitrogen levels." },
+    { name: "Wheat", percent: 50, score: 94, expectedRevenue: 82000, estimatedCost: 31000, explanation: "Guaranteed MSP floor protection." },
+    { name: "Mustard", percent: 25, score: 88, expectedRevenue: 44000, estimatedCost: 17500, explanation: "High mandi demand and water efficiency." },
+    { name: "Onion", percent: 15, score: 90, expectedRevenue: 95000, estimatedCost: 20800, explanation: "High cash upside." },
+    { name: "Chickpea", percent: 10, score: 82, expectedRevenue: 16000, estimatedCost: 10000, explanation: "Improves soil health and nitrogen levels." },
   ],
   sowingDate: new Date().toISOString(),
   region: "Punjab - Bathinda (Trans-Gangetic Plains)",
@@ -53,7 +57,21 @@ export default function CropPlannerPage() {
     return new Date().toISOString();
   });
 
-  const [region, setRegion] = useState<string>("Punjab - Bathinda (Trans-Gangetic Plains)");
+  const [region, setRegion] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("acceptedRecommendation");
+        if (raw) {
+          const parsed = JSON.parse(raw) as AcceptedPlan;
+          if (parsed.region) return parsed.region;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return `${DISTRICT_MASTER[0].state} - ${DISTRICT_MASTER[0].district} (${DISTRICT_MASTER[0].zone})`;
+  });
+
   const [selectedCropIndex, setSelectedCropIndex] = useState<number>(0);
 
   const accepted = useMemo<AcceptedPlan>(() => {
@@ -77,88 +95,105 @@ export default function CropPlannerPage() {
   }, [activeCropAlloc.name, sowingDate, region]);
 
   return (
-    <AppShell pageTitle="Crop lifecycle plan">
-      <section className="page-wrap feature-page max-w-5xl mx-auto space-y-4">
-        <header className="feature-header flex justify-between items-start flex-wrap gap-4 mb-2">
-          <div>
-            <p className="eyebrow">ACTIVE AGRONOMIC PLAN</p>
-            <h1>Crop Lifecycle Timeline & Guidance</h1>
-            <p className="subhead">
-              Stage-by-stage operations schedule calibrated to your sowing date and ICAR package-of-practices.
+    <AppShell pageTitle="Crop Lifecycle Plan">
+      <div className="page-container space-y-6">
+        {/* Header Row */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="agri-badge agri-badge-emerald">ICAR Package of Practices</span>
+              <span className="text-xs text-[var(--text-muted)] font-['Space_Grotesk']">
+                {plan.totalDurationDays} Day Lifecycle
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              Agronomic Lifecycle Operations Roadmap
+            </h1>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Stage-by-stage operations schedule calibrated to your sowing date, regional moisture, and soil conditions.
             </p>
           </div>
         </header>
 
         {/* Date & Region Controls */}
-        <section className="panel space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <label htmlFor="sowing-date" className="block text-gray-600 font-semibold uppercase tracking-wider mb-1">
-                Approximate Sowing Date:
+        <section className="agri-card p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label htmlFor="sowing-date" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider font-['Space_Grotesk']">
+                Sowing Date:
               </label>
               <input
                 id="sowing-date"
                 type="date"
                 value={sowingDate ? new Date(sowingDate).toISOString().slice(0, 10) : ""}
                 onChange={(e) => setSowingDate(new Date(e.target.value).toISOString())}
-                className="p-2 border rounded w-full bg-white font-medium text-sm"
+                className="agri-input font-bold"
               />
             </div>
-            <div>
-              <label htmlFor="zone-select" className="block text-gray-600 font-semibold uppercase tracking-wider mb-1">
+            <div className="space-y-1.5">
+              <label htmlFor="zone-select" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider font-['Space_Grotesk']">
                 Agro-Climatic Zone:
               </label>
               <select
                 id="zone-select"
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
-                className="p-2 border rounded w-full bg-white font-medium text-sm"
+                className="agri-select"
               >
-                <option value="Punjab - Bathinda (Trans-Gangetic Plains)">Punjab - Bathinda (Trans-Gangetic Plains)</option>
-                <option value="Haryana - Karnal (Trans-Gangetic Plains)">Haryana - Karnal (Trans-Gangetic Plains)</option>
-                <option value="UP - Varanasi (Middle Gangetic Plains)">UP - Varanasi (Middle Gangetic Plains)</option>
-                <option value="Maharashtra - Nashik (Western Plateau)">Maharashtra - Nashik (Western Plateau)</option>
-                <option value="MP - Indore (Central Plateau)">MP - Indore (Central Plateau)</option>
+                {DISTRICT_MASTER.map((d) => (
+                  <option key={d.districtId} value={`${d.state} - ${d.district} (${d.zone})`}>
+                    {d.state} - {d.district} ({d.zone})
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           {/* Multi-Crop Navigation Tabs */}
-          <div className="pt-2 border-t flex gap-2 flex-wrap items-center">
-            <span className="text-[11px] text-gray-500 font-semibold uppercase mr-1">Select Crop Plan:</span>
+          <div className="pt-3 border-t border-[var(--border-subtle)] flex gap-2 flex-wrap items-center">
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mr-1">
+              Select Crop Plan:
+            </span>
             {accepted.allocations.map((alloc, idx) => (
               <button
                 key={alloc.name}
                 type="button"
                 onClick={() => setSelectedCropIndex(idx)}
-                className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition cursor-pointer ${
+                className={`text-xs px-3.5 py-2 rounded-xl border font-bold transition-all cursor-pointer ${
                   selectedCropIndex === idx
-                    ? "bg-emerald-800 text-white border-emerald-800 shadow-sm"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                    ? "agri-btn-primary shadow-xs"
+                    : "agri-btn-secondary"
                 }`}
               >
-                {alloc.name} ({alloc.percent}% of land)
+                {alloc.name} ({alloc.percent}% of farm)
               </button>
             ))}
           </div>
         </section>
 
         {/* Plan Header Summary Card */}
-        <section className="panel bg-gradient-to-br from-emerald-800 to-emerald-950 text-white border-0 shadow-md">
+        <section className="p-6 rounded-2xl bg-gradient-to-br from-[var(--color-primary)] to-[#064e3b] text-white border border-[var(--border-accent)] shadow-card space-y-3">
           <div className="flex justify-between items-start flex-wrap gap-4">
             <div>
-              <span className="text-xs uppercase tracking-wider text-emerald-300 font-semibold">Active Advisory Roadmap</span>
-              <div className="flex items-center gap-2 mt-0.5">
-                <h2 className="text-2xl font-black text-white">{plan.cropName}</h2>
-                <span className="text-xs text-emerald-200">({plan.hindiName})</span>
+              <span className="text-xs uppercase tracking-wider text-emerald-200 font-bold font-['Space_Grotesk']">
+                Active Crop Advisory Roadmap
+              </span>
+              <div className="flex items-center gap-2 mt-1">
+                <h2 className="text-3xl font-bold font-['Space_Grotesk'] text-white">
+                  {plan.cropName}
+                </h2>
+                <span className="text-sm text-emerald-200">({plan.hindiName})</span>
               </div>
-              <p className="text-xs text-emerald-200 mt-1">
+              <p className="text-xs text-emerald-100 mt-1">
                 Agro-Climatic Zone: {plan.region} · Season: {plan.season}
               </p>
             </div>
+
             <div className="text-right">
-              <div className="text-3xl font-black text-white">{plan.totalDurationDays} Days</div>
-              <p className="text-xs text-emerald-300">
+              <div className="text-3xl font-bold font-['Space_Grotesk'] text-white">
+                {plan.totalDurationDays} Days
+              </div>
+              <p className="text-xs text-emerald-200 mt-0.5">
                 Sowing: {plan.sowingDate} → Harvest: {plan.expectedHarvestDate}
               </p>
             </div>
@@ -166,45 +201,47 @@ export default function CropPlannerPage() {
         </section>
 
         {/* Timeline Milestones Progression */}
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+        <section className="space-y-4">
+          <h2 className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
             Stage-by-Stage Agronomic Schedule ({plan.stages.length} Milestones)
           </h2>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {plan.stages.map((stage) => (
               <article
                 key={stage.stageNumber}
-                className={`panel border transition ${
+                className={`agri-card p-6 space-y-4 ${
                   stage.status === "active"
-                    ? "border-emerald-600 bg-emerald-50/40 shadow-sm"
-                    : stage.status === "completed"
-                    ? "border-gray-200 bg-gray-50/60 opacity-80"
-                    : "border-gray-200 bg-white"
+                    ? "border-[var(--color-primary)] ring-1 ring-[var(--border-accent)]"
+                    : ""
                 }`}
               >
                 {/* Stage Header */}
                 <div className="flex justify-between items-start flex-wrap gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-emerald-800 text-white text-xs font-bold flex items-center justify-center">
-                        {stage.stageNumber}
-                      </span>
-                      <strong className="text-sm font-bold text-gray-900">{stage.stageName}</strong>
-                      <span className="text-xs text-gray-500 font-normal">({stage.hindiName})</span>
+                  <div className="flex items-start gap-3">
+                    <span className="w-8 h-8 rounded-xl bg-[var(--color-primary-light)] text-[var(--color-primary-text)] text-xs font-bold flex items-center justify-center shrink-0 border border-[var(--border-accent)]">
+                      #{stage.stageNumber}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                          {stage.stageName}
+                        </strong>
+                        <span className="text-xs text-[var(--text-muted)]">({stage.hindiName})</span>
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        {stage.startDate} — {stage.endDate} ({stage.durationDays} days · {stage.startDayOffset}–{stage.endDayOffset} DAS)
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 ml-8">
-                      {stage.startDate} — {stage.endDate} ({stage.durationDays} days · {stage.startDayOffset}–{stage.endDayOffset} DAS)
-                    </p>
                   </div>
 
                   <span
-                    className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                    className={`agri-badge ${
                       stage.status === "active"
-                        ? "bg-emerald-600 text-white"
+                        ? "agri-badge-emerald"
                         : stage.status === "completed"
-                        ? "bg-gray-200 text-gray-700"
-                        : "bg-blue-50 text-blue-700 border border-blue-200"
+                        ? "agri-badge-sky"
+                        : "agri-badge-amber"
                     }`}
                   >
                     {stage.status === "active" ? "● Active Stage" : stage.status === "completed" ? "✓ Completed" : "Upcoming"}
@@ -212,25 +249,33 @@ export default function CropPlannerPage() {
                 </div>
 
                 {/* Operations Guidance Grid */}
-                <div className="mt-3 ml-8 pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-2.5 bg-blue-50/60 border border-blue-200/80 rounded-lg">
-                    <strong className="text-blue-900 block text-[11px] uppercase mb-0.5">🚿 Irrigation Operations</strong>
-                    <p className="text-blue-950 leading-relaxed">{stage.irrigationGuidance}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-[var(--border-subtle)] text-xs">
+                  <div className="p-3.5 rounded-xl bg-[var(--color-sky-bg)] border border-[var(--color-sky-border)] space-y-1">
+                    <strong className="text-[var(--color-sky-text)] block text-xs uppercase font-bold tracking-wider">
+                      🚿 Irrigation Operations
+                    </strong>
+                    <p className="text-[var(--color-sky-text)] leading-relaxed">{stage.irrigationGuidance}</p>
                   </div>
 
-                  <div className="p-2.5 bg-emerald-50/60 border border-emerald-200/80 rounded-lg">
-                    <strong className="text-emerald-900 block text-[11px] uppercase mb-0.5">🌾 Nutrient & Fertilizer Splits</strong>
-                    <p className="text-emerald-950 leading-relaxed">{stage.fertilizerGuidance}</p>
+                  <div className="p-3.5 rounded-xl bg-[var(--color-emerald-bg)] border border-[var(--color-emerald-border)] space-y-1">
+                    <strong className="text-[var(--color-emerald-text)] block text-xs uppercase font-bold tracking-wider">
+                      🌾 Nutrient & Fertilizer Splits
+                    </strong>
+                    <p className="text-[var(--color-emerald-text)] leading-relaxed">{stage.fertilizerGuidance}</p>
                   </div>
 
-                  <div className="p-2.5 bg-amber-50/60 border border-amber-200/80 rounded-lg">
-                    <strong className="text-amber-900 block text-[11px] uppercase mb-0.5">🌿 Weed Management</strong>
-                    <p className="text-amber-950 leading-relaxed">{stage.weedManagement}</p>
+                  <div className="p-3.5 rounded-xl bg-[var(--color-amber-bg)] border border-[var(--color-amber-border)] space-y-1">
+                    <strong className="text-[var(--color-amber-text)] block text-xs uppercase font-bold tracking-wider">
+                      🌿 Weed Management
+                    </strong>
+                    <p className="text-[var(--color-amber-text)] leading-relaxed">{stage.weedManagement}</p>
                   </div>
 
-                  <div className="p-2.5 bg-rose-50/60 border border-rose-200/80 rounded-lg">
-                    <strong className="text-rose-900 block text-[11px] uppercase mb-0.5">🐛 Pest & Disease Surveillance</strong>
-                    <p className="text-rose-950 leading-relaxed">
+                  <div className="p-3.5 rounded-xl bg-[var(--color-rose-bg)] border border-[var(--color-rose-border)] space-y-1">
+                    <strong className="text-[var(--color-rose-text)] block text-xs uppercase font-bold tracking-wider">
+                      🐛 Pest & Disease Surveillance
+                    </strong>
+                    <p className="text-[var(--color-rose-text)] leading-relaxed">
                       {stage.pestMonitoring} {stage.diseaseMonitoring}
                     </p>
                   </div>
@@ -241,10 +286,10 @@ export default function CropPlannerPage() {
         </section>
 
         {/* Advisory Disclaimer Notice */}
-        <section className="panel text-xs text-gray-500 bg-gray-50 border leading-relaxed">
-          <strong>Advisory Disclaimer:</strong> {plan.advisoryDisclaimer}
+        <section className="p-4 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] text-xs text-[var(--text-secondary)] leading-relaxed">
+          <strong className="text-[var(--text-primary)]">Advisory Disclaimer:</strong> {plan.advisoryDisclaimer}
         </section>
-      </section>
+      </div>
     </AppShell>
   );
 }

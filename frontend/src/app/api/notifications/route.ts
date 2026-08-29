@@ -1,47 +1,78 @@
 import { NextResponse } from "next/server";
-import { saveNotification, listNotifications, markNotificationRead, type NotificationRecord } from "./repository";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE_NAME, verifyJWT } from "@/lib/auth";
+import {
+  getFarmerNotifications,
+  createFarmerNotification,
+} from "@/lib/notification-service";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get("type") || undefined;
+
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  let userId = "default-farmer";
+  if (token) {
+    const user = await verifyJWT(token);
+    if (user?.sub) userId = user.sub;
+  }
+
   try {
-    const items = await listNotifications();
-    return NextResponse.json({ success: true, notifications: items });
+    const data = await getFarmerNotifications(userId, type);
+    return NextResponse.json({
+      success: true,
+      unreadCount: data.unreadCount,
+      notifications: data.notifications,
+    });
   } catch {
-    return NextResponse.json({ success: false, error: { code: 'NOTIFICATION_LIST_FAILED', message: 'Could not list notifications' } }, { status: 503 });
+    return NextResponse.json(
+      { success: false, error: { code: "NOTIFICATIONS_FAILED", message: "Failed to retrieve notifications." } },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null);
-  if (!body || !body.type || !body.title) {
-    return NextResponse.json({ success: false, error: { code: 'INVALID_NOTIFICATION', message: 'Missing type or title' } }, { status: 400 });
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  let userId = "default-farmer";
+  if (token) {
+    const user = await verifyJWT(token);
+    if (user?.sub) userId = user.sub;
   }
-  const n: NotificationRecord = {
-    id: crypto.randomUUID(),
-    type: String(body.type),
-    title: String(body.title),
-    body: body.body ? String(body.body) : '',
-    data: body.data && typeof body.data === 'object' ? body.data : null,
-    level: body.level ? String(body.level) : 'info',
-    read: false,
-    createdAt: new Date().toISOString(),
-  };
-  try {
-    await saveNotification(n);
-    return NextResponse.json({ success: true, notification: n }, { status: 201 });
-  } catch {
-    return NextResponse.json({ success: false, error: { code: 'NOTIFICATION_SAVE_FAILED', message: 'Could not save notification' } }, { status: 503 });
-  }
-}
 
-export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
-  if (!body || !body.id || typeof body.read !== 'boolean') {
-    return NextResponse.json({ success: false, error: { code: 'INVALID_UPDATE', message: 'Missing id or read flag' } }, { status: 400 });
+  if (!body || !body.title || !body.body || !body.type) {
+    return NextResponse.json(
+      { success: false, error: { code: "INVALID_BODY", message: "title, body, and type are required." } },
+      { status: 400 }
+    );
   }
+
   try {
-    await markNotificationRead(String(body.id), Boolean(body.read));
-    return NextResponse.json({ success: true });
+    const created = await createFarmerNotification(
+      {
+        userId,
+        type: body.type,
+        title: body.title,
+        body: body.body,
+        severity: body.severity || "info",
+        actionUrl: body.actionUrl,
+        actionLabel: body.actionLabel,
+        data: body.data,
+      },
+      userId
+    );
+
+    return NextResponse.json({
+      success: true,
+      notification: created,
+    });
   } catch {
-    return NextResponse.json({ success: false, error: { code: 'NOTIFICATION_UPDATE_FAILED', message: 'Could not update notification' } }, { status: 503 });
+    return NextResponse.json(
+      { success: false, error: { code: "CREATE_FAILED", message: "Failed to create notification." } },
+      { status: 500 }
+    );
   }
 }

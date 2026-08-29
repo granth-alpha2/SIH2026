@@ -5,7 +5,9 @@ import { getPreferences } from "../preferences/repository";
 import { getFarm } from "../farms/repository";
 import { getAgriWeather } from "@/lib/weather-service";
 import { generateRecommendations, type RecommendationInput } from "@/lib/recommendation-engine";
+import { resolveDistrictFromCoords, DISTRICT_MASTER } from "@/lib/geo-service";
 import type { CropSeason } from "@/lib/crop-data";
+
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -27,9 +29,9 @@ export async function POST(request: Request) {
   }
 
   let farmAreaAcres = body.farmAreaAcres || 2.5;
-  let lat = 30.2110;
-  let lng = 74.9455;
-  let locationName = "Bathinda, Punjab";
+  let lat = DISTRICT_MASTER[0].lat;
+  let lng = DISTRICT_MASTER[0].lng;
+  let locationName = `${DISTRICT_MASTER[0].district}, ${DISTRICT_MASTER[0].state}`;
 
   if (farmId) {
     try {
@@ -38,7 +40,8 @@ export async function POST(request: Request) {
         farmAreaAcres = farm.areaAcres || farmAreaAcres;
         lat = farm.center.lat;
         lng = farm.center.lng;
-        locationName = farm.name;
+        const dInfo = resolveDistrictFromCoords(lat, lng);
+        locationName = `${farm.name} (${dInfo.district}, ${dInfo.state})`;
         if (farm.preferences) {
           const water = farm.preferences.water === "Low" || farm.preferences.water === "Medium" || farm.preferences.water === "High" ? farm.preferences.water : undefined;
           const risk = farm.preferences.risk === "Conservative" || farm.preferences.risk === "Balanced" || farm.preferences.risk === "Growth" ? farm.preferences.risk : undefined;
@@ -52,7 +55,13 @@ export async function POST(request: Request) {
     } catch {
       // Fallback to coordinates
     }
+  } else if (body.lat && body.lng) {
+    lat = Number(body.lat);
+    lng = Number(body.lng);
+    const dInfo = resolveDistrictFromCoords(lat, lng);
+    locationName = `${dInfo.district}, ${dInfo.state}`;
   }
+
 
   // Fetch weather report for centroid
   const weather = await getAgriWeather(lat, lng, locationName);

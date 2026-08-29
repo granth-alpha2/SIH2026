@@ -61,7 +61,6 @@ export default function PreferencesPage() {
     const current = prefs[listName] || [];
     const updated = current.includes(crop) ? current.filter((c) => c !== crop) : [...current, crop];
 
-    // If adding to preferred, remove from avoid and vice versa
     const otherListName = listName === "preferredCrops" ? "cropsToAvoid" : "preferredCrops";
     const otherUpdated = (prefs[otherListName] || []).filter((c) => c !== crop);
 
@@ -100,31 +99,70 @@ export default function PreferencesPage() {
   if (loading || !prefs) {
     return (
       <AppShell pageTitle="Preferences">
-        <section className="page-wrap feature-page">
-          <div className="panel text-center py-10 text-gray-500">Loading farmer preferences...</div>
-        </section>
+        <div className="page-container">
+          <div className="agri-card p-12 text-center text-[var(--text-muted)] space-y-2">
+            <div className="inline-block w-8 h-8 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium">Loading farmer preferences...</p>
+          </div>
+        </div>
       </AppShell>
     );
   }
 
   return (
-    <AppShell pageTitle="Farmer preferences">
-      <section className="page-wrap feature-page max-w-3xl mx-auto space-y-4">
-        <header className="feature-header mb-2">
-          <p className="eyebrow">DECISION PREFERENCES</p>
-          <h1>Farmer Preferences & Constraints</h1>
-          <p className="subhead">
-            Tailor AI crop allocations to your risk tolerance, irrigation capacity, working capital, and preferred crops.
-          </p>
+    <AppShell pageTitle="Farmer Preferences">
+      <div className="page-container max-w-4xl mx-auto space-y-6">
+        {/* Header Row */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="agri-badge agri-badge-emerald">Optimization Constraints</span>
+              <span className="text-xs text-[var(--text-muted)] font-['Space_Grotesk']">
+                Active Farm Profile
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              Farmer Preferences & Risk Constraints
+            </h1>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Tailor AI crop allocations to your risk tolerance, irrigation capacity, working capital, and preferred crops.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="agri-btn-primary py-3 px-6 shrink-0"
+          >
+            {saving ? "Saving Preferences..." : "Save Preferences →"}
+          </button>
         </header>
 
-        {/* 1. Risk Appetite */}
-        <section className="panel space-y-2">
-          <div>
-            <strong className="text-sm text-gray-900 block">1. Risk Tolerance Strategy</strong>
-            <span className="text-xs text-gray-500">How would you like to balance price safety vs profit upside?</span>
+        {statusMessage && (
+          <div
+            className={`p-4 rounded-xl text-xs font-bold ${
+              statusMessage.type === "success"
+                ? "agri-badge-emerald border"
+                : "agri-badge-rose border"
+            }`}
+          >
+            {statusMessage.text}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+        )}
+
+        {/* 1. Risk Appetite */}
+        <section className="agri-card p-6 space-y-3">
+          <div>
+            <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+              1. Risk Tolerance Strategy
+            </strong>
+            <span className="text-xs text-[var(--text-muted)]">
+              How would you like to balance price safety vs profit upside?
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             {(
               [
                 ["Conservative", "MSP Floor Priority", "Shield against price drop; guaranteed govt floor"],
@@ -136,30 +174,37 @@ export default function PreferencesPage() {
                 key={value}
                 type="button"
                 onClick={() => setPrefs({ ...prefs, riskAppetite: value })}
-                className={`p-3 rounded-lg border text-left transition ${
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
                   prefs.riskAppetite === value
-                    ? "border-emerald-700 bg-emerald-50/80 shadow-sm"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "border-[var(--color-primary)] bg-[var(--bg-surface-accent)] ring-1 ring-[var(--border-accent)]"
+                    : "border-[var(--border-default)] bg-[var(--bg-surface-subtle)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 <div className="flex justify-between items-center">
-                  <strong className="text-xs text-gray-900">{value}</strong>
-                  {prefs.riskAppetite === value && <span className="text-emerald-700 font-bold text-xs">✓</span>}
+                  <strong className="text-sm font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">{value}</strong>
+                  {prefs.riskAppetite === value && (
+                    <span className="text-xs font-bold text-[var(--color-primary)]">✓ Active</span>
+                  )}
                 </div>
-                <div className="text-[11px] font-semibold text-emerald-800 mt-0.5">{label}</div>
-                <p className="text-[10px] text-gray-500 mt-1 leading-tight">{desc}</p>
+                <div className="text-xs font-bold text-[var(--color-primary-text)]">{label}</div>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{desc}</p>
               </button>
             ))}
           </div>
         </section>
 
         {/* 2. Water Availability */}
-        <section className="panel space-y-2">
+        <section className="agri-card p-6 space-y-3">
           <div>
-            <strong className="text-sm text-gray-900 block">2. Water & Irrigation Access</strong>
-            <span className="text-xs text-gray-500">Select the assured water source for this upcoming season.</span>
+            <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+              2. Water & Irrigation Access
+            </strong>
+            <span className="text-xs text-[var(--text-muted)]">
+              Select the assured water source for this upcoming season.
+            </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             {(
               [
                 ["Low", "Rainfed / Limited", "Prefer low-water drought-hardy crops (Mustard, Gram, Bajra)"],
@@ -171,30 +216,37 @@ export default function PreferencesPage() {
                 key={value}
                 type="button"
                 onClick={() => setPrefs({ ...prefs, waterAvailability: value })}
-                className={`p-3 rounded-lg border text-left transition ${
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
                   prefs.waterAvailability === value
-                    ? "border-emerald-700 bg-emerald-50/80 shadow-sm"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "border-[var(--color-primary)] bg-[var(--bg-surface-accent)] ring-1 ring-[var(--border-accent)]"
+                    : "border-[var(--border-default)] bg-[var(--bg-surface-subtle)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 <div className="flex justify-between items-center">
-                  <strong className="text-xs text-gray-900">{value}</strong>
-                  {prefs.waterAvailability === value && <span className="text-emerald-700 font-bold text-xs">✓</span>}
+                  <strong className="text-sm font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">{value}</strong>
+                  {prefs.waterAvailability === value && (
+                    <span className="text-xs font-bold text-[var(--color-primary)]">✓ Active</span>
+                  )}
                 </div>
-                <div className="text-[11px] font-semibold text-emerald-800 mt-0.5">{label}</div>
-                <p className="text-[10px] text-gray-500 mt-1 leading-tight">{desc}</p>
+                <div className="text-xs font-bold text-[var(--color-primary-text)]">{label}</div>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{desc}</p>
               </button>
             ))}
           </div>
         </section>
 
-        {/* 3. Working Capital / Investment Capacity */}
-        <section className="panel space-y-2">
+        {/* 3. Working Capital Investment Capacity */}
+        <section className="agri-card p-6 space-y-3">
           <div>
-            <strong className="text-sm text-gray-900 block">3. Working Capital Investment Capacity</strong>
-            <span className="text-xs text-gray-500">Seed, fertilizer, diesel, and labor budget per acre.</span>
+            <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+              3. Working Capital Budget
+            </strong>
+            <span className="text-xs text-[var(--text-muted)]">
+              Seed, fertilizer, diesel, and labor budget per acre.
+            </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             {(
               [
                 ["Low", "< ₹25,000 / acre", "Low input pulses and oilseeds"],
@@ -206,29 +258,36 @@ export default function PreferencesPage() {
                 key={value}
                 type="button"
                 onClick={() => setPrefs({ ...prefs, investmentCapacity: value })}
-                className={`p-3 rounded-lg border text-left transition ${
+                className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
                   prefs.investmentCapacity === value
-                    ? "border-emerald-700 bg-emerald-50/80 shadow-sm"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "border-[var(--color-primary)] bg-[var(--bg-surface-accent)] ring-1 ring-[var(--border-accent)]"
+                    : "border-[var(--border-default)] bg-[var(--bg-surface-subtle)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 <div className="flex justify-between items-center">
-                  <strong className="text-xs text-gray-900">{value}</strong>
-                  {prefs.investmentCapacity === value && <span className="text-emerald-700 font-bold text-xs">✓</span>}
+                  <strong className="text-sm font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">{value}</strong>
+                  {prefs.investmentCapacity === value && (
+                    <span className="text-xs font-bold text-[var(--color-primary)]">✓ Active</span>
+                  )}
                 </div>
-                <div className="text-[11px] font-semibold text-emerald-800 mt-0.5">{label}</div>
-                <p className="text-[10px] text-gray-500 mt-1 leading-tight">{desc}</p>
+                <div className="text-xs font-bold text-[var(--color-primary-text)]">{label}</div>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{desc}</p>
               </button>
             ))}
           </div>
         </section>
 
         {/* 4. Preferred Crops & Crops to Avoid */}
-        <section className="panel space-y-3">
+        <section className="agri-card p-6 space-y-4">
           <div>
-            <strong className="text-sm text-gray-900 block">4. Preferred Crops (Multi-select)</strong>
-            <span className="text-xs text-gray-500">Tap crops you prefer or have machinery/market access for:</span>
+            <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+              4. Preferred Crops
+            </strong>
+            <span className="text-xs text-[var(--text-muted)]">
+              Click crops you prefer or have machinery/market access for:
+            </span>
           </div>
+
           <div className="flex gap-2 flex-wrap">
             {candidateCrops.map((crop) => {
               const isPreferred = (prefs.preferredCrops || []).includes(crop);
@@ -237,10 +296,10 @@ export default function PreferencesPage() {
                   key={crop}
                   type="button"
                   onClick={() => toggleCrop("preferredCrops", crop)}
-                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${
+                  className={`text-xs px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer ${
                     isPreferred
-                      ? "bg-emerald-800 text-white border-emerald-800"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-emerald-600"
+                      ? "agri-badge-emerald border shadow-xs"
+                      : "bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-default)]"
                   }`}
                 >
                   {isPreferred ? `✓ ${crop}` : `+ ${crop}`}
@@ -249,9 +308,11 @@ export default function PreferencesPage() {
             })}
           </div>
 
-          <div className="pt-2 border-t">
-            <strong className="text-xs text-gray-700 block mb-1">Crops to Avoid (Excluded from plan):</strong>
-            <div className="flex gap-1.5 flex-wrap">
+          <div className="pt-3 border-t border-[var(--border-subtle)]">
+            <strong className="text-sm font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block mb-1">
+              Crops to Exclude / Avoid:
+            </strong>
+            <div className="flex gap-2 flex-wrap">
               {candidateCrops.map((crop) => {
                 const isAvoided = (prefs.cropsToAvoid || []).includes(crop);
                 return (
@@ -259,13 +320,13 @@ export default function PreferencesPage() {
                     key={crop}
                     type="button"
                     onClick={() => toggleCrop("cropsToAvoid", crop)}
-                    className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
+                    className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer ${
                       isAvoided
-                        ? "bg-rose-100 text-rose-800 border-rose-300 font-semibold"
-                        : "bg-gray-50 text-gray-500 border-gray-200"
+                        ? "agri-badge-rose border shadow-xs"
+                        : "bg-[var(--bg-surface-subtle)] text-[var(--text-muted)] hover:text-rose-500 border border-[var(--border-subtle)]"
                     }`}
                   >
-                    {isAvoided ? `✕ Excluded: ${crop}` : crop}
+                    {isAvoided ? `✕ Exclude ${crop}` : crop}
                   </button>
                 );
               })}
@@ -273,92 +334,89 @@ export default function PreferencesPage() {
           </div>
         </section>
 
-        {/* 5. Optional Soil & Experience Details */}
-        <section className="panel space-y-3">
+        {/* 5. Soil Profile */}
+        <section className="agri-card p-6 space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <strong className="text-sm text-gray-900 block">5. Soil Information & Experience (Optional)</strong>
-              <span className="text-xs text-gray-500">Provides fine-grained fertilizer & soil matching.</span>
+              <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+                5. Soil Classification
+              </strong>
+              <span className="text-xs text-[var(--text-muted)]">
+                Active soil profile: {prefs.soilType || "Alluvial"} (pH {prefs.soilPh || 7.2})
+              </span>
             </div>
             <button
               type="button"
               onClick={() => setShowSoilDetails(!showSoilDetails)}
-              className="text-xs text-emerald-700 underline font-medium"
+              className="text-xs font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
             >
-              {showSoilDetails ? "Hide Soil Fields" : "+ Show Soil Fields"}
+              {showSoilDetails ? "Hide Soil Details ▲" : "Configure Soil Details ▼"}
             </button>
           </div>
 
-          {showSoilDetails && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t text-xs">
-              <div>
-                <label htmlFor="soil-type-select" className="block text-gray-600 font-medium mb-1">Soil Type:</label>
-                <select
-                  id="soil-type-select"
-                  value={prefs.soilType || "Loam"}
-                  onChange={(e) => setPrefs({ ...prefs, soilType: e.target.value as SoilType })}
-                  className="p-2 border rounded w-full bg-white"
-                >
-                  {soilOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s} Soil
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+            {soilOptions.map((soil) => (
+              <button
+                key={soil}
+                type="button"
+                onClick={() =>
+                  setPrefs({
+                    ...prefs,
+                    soilType: soil,
+                  })
+                }
+                className={`p-3 rounded-xl border text-center text-xs font-bold font-['Space_Grotesk'] transition-all cursor-pointer ${
+                  prefs.soilType === soil
+                    ? "agri-badge-emerald border shadow-xs"
+                    : "bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-default)]"
+                }`}
+              >
+                {soil}
+              </button>
+            ))}
+          </div>
 
-              <div>
-                <label htmlFor="ph-input" className="block text-gray-600 font-medium mb-1">Soil pH (4.0 - 10.0):</label>
+          {showSoilDetails && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-[var(--border-subtle)] text-xs">
+              <div className="space-y-1">
+                <label htmlFor="soil-ph" className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Soil pH</label>
                 <input
-                  id="ph-input"
+                  id="soil-ph"
                   type="number"
                   step="0.1"
-                  min="4.0"
-                  max="10.0"
-                  value={prefs.soilPh ?? 7.2}
-                  onChange={(e) => setPrefs({ ...prefs, soilPh: Number(e.target.value) })}
-                  className="p-2 border rounded w-full bg-white"
+                  value={prefs.soilPh || 7.2}
+                  onChange={(e) =>
+                    setPrefs({
+                      ...prefs,
+                      soilPh: Number(e.target.value) || 7.2,
+                    })
+                  }
+                  className="agri-input font-bold"
                 />
               </div>
 
-              <div>
-                <label htmlFor="exp-input" className="block text-gray-600 font-medium mb-1">Farming Experience (Years):</label>
-                <input
-                  id="exp-input"
-                  type="number"
-                  min="0"
-                  max="60"
-                  value={prefs.farmingExperienceYears ?? 10}
-                  onChange={(e) => setPrefs({ ...prefs, farmingExperienceYears: Number(e.target.value) })}
-                  className="p-2 border rounded w-full bg-white"
-                />
+              <div className="space-y-1">
+                <label htmlFor="soil-carbon" className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Organic Carbon Level</label>
+                <select
+                  id="soil-carbon"
+                  value={prefs.soilOrganicCarbon || "Medium"}
+                  onChange={(e) =>
+                    setPrefs({
+                      ...prefs,
+                      soilOrganicCarbon: e.target.value as ResourceLevel,
+                    })
+                  }
+                  className="agri-select font-bold"
+                >
+                  <option value="Low">Low (&lt; 0.5%)</option>
+                  <option value="Medium">Medium (0.5% - 0.75%)</option>
+                  <option value="High">High (&gt; 0.75%)</option>
+                </select>
               </div>
             </div>
           )}
         </section>
-
-        {statusMessage && (
-          <div
-            className={`p-3 rounded text-xs font-medium ${
-              statusMessage.type === "success"
-                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                : "bg-rose-50 text-rose-800 border border-rose-200"
-            }`}
-          >
-            {statusMessage.text}
-          </div>
-        )}
-
-        <button
-          type="button"
-          disabled={saving}
-          onClick={handleSave}
-          className="primary-button w-full py-3 text-sm font-semibold shadow"
-        >
-          {saving ? "Saving Preferences..." : "Save Preferences for Crop Recommendations"}
-        </button>
-      </section>
+      </div>
     </AppShell>
   );
 }
-

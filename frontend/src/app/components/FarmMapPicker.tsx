@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import type { FarmRecord } from "../api/farms/repository";
+import { resolveDistrictFromCoords, DISTRICT_MASTER } from "@/lib/geo-service";
 
 export type FarmSelection = {
   center: { lat: number; lng: number };
@@ -27,8 +28,9 @@ type DrawingManagerRuntime = {
   setDrawingMode: (mode: google.maps.drawing.OverlayType | null) => void;
 };
 
-const defaultCenter = { lat: 30.2110, lng: 74.9455 }; // Bathinda, Punjab
+const defaultCenter = { lat: 20.5937, lng: 78.9629 }; // India geographic center (auto-centered by GPS or search)
 let configuredApiKey = "";
+
 
 export default function FarmMapPicker({
   onAreaChange,
@@ -47,10 +49,11 @@ export default function FarmMapPicker({
   const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
 
   const [farmName, setFarmName] = useState(initialFarm?.name || "Main Field Plot");
-  const [status, setStatus] = useState("Click 'Draw field boundary' or tap on the map to place boundary points.");
-  const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [status, setStatus] = useState("Click '📍 Use My Location' or search your area, then click corners to draw your field boundary.");
+  const [, setMapsLoaded] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [useFallbackMode, setUseFallbackMode] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
 
   const [measuredAreaAcres, setMeasuredAreaAcres] = useState(initialFarm?.areaAcres || 0);
   const [sections, setSections] = useState<LandSection[]>(
@@ -63,7 +66,7 @@ export default function FarmMapPicker({
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Fallback map state (points in pixel coordinates on 500x350 canvas)
+  // Fallback map state
   const [fallbackPoints, setFallbackPoints] = useState<{ x: number; y: number }[]>([]);
   const [fallbackCentroid, setFallbackCentroid] = useState<{ lat: number; lng: number }>(
     initialFarm?.center || defaultCenter
@@ -83,6 +86,74 @@ export default function FarmMapPicker({
     },
     [onAreaChange, onSelectionChange]
   );
+
+  function setMarker(location: google.maps.LatLng) {
+    markerRef.current?.setMap(null);
+    markerRef.current = new google.maps.Marker({
+      map: mapRef.current,
+      position: location,
+      title: "Farm Centroid",
+      draggable: true,
+    });
+    markerRef.current.addListener("dragend", () => {
+      const pos = markerRef.current?.getPosition();
+      if (pos) {
+        const points = polygonRef.current?.getPath().getArray().map((p) => p.toJSON()) || [];
+        handleAreaUpdate(measuredAreaAcres, points, pos.toJSON());
+      }
+    });
+  }
+
+  function updateGoogleMapArea(polygon: google.maps.Polygon) {
+    const sqMeters = google.maps.geometry.spherical.computeArea(polygon.getPath());
+    // 1 Acre = 4046.8564224 sq meters
+    const acres = Math.max(0.05, sqMeters / 4046.8564224);
+    const points = polygon.getPath().getArray().map((p) => p.toJSON());
+    const center = markerRef.current?.getPosition()?.toJSON() || points[0] || defaultCenter;
+    handleAreaUpdate(acres, points, center);
+    const ha = (acres / 2.47105).toFixed(2);
+    const sqM = Math.round(sqMeters).toLocaleString();
+    setStatus(`✓ Enclosed Boundary: ${acres.toFixed(2)} acres (${ha} ha / ${sqM} m²). Drag corner points to adjust.`);
+  }
+
+  // "Use My Location" Geolocation Handler
+  const handleUseMyLocation = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setDetectingLocation(true);
+    setStatus("📍 Accessing device GPS to locate your farm...");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setDetectingLocation(false);
+        const { latitude, longitude } = position.coords;
+        const districtInfo = resolveDistrictFromCoords(latitude, longitude);
+
+        setStatus(
+          `📍 Location Detected: ${districtInfo.district}, ${districtInfo.state} (${districtInfo.agroClimaticZone}) [${latitude.toFixed(4)}°N, ${longitude.toFixed(4)}°E]`
+        );
+        setFarmName(`${districtInfo.district} Farm Plot`);
+
+        if (mapRef.current) {
+          const pos = new google.maps.LatLng(latitude, longitude);
+          mapRef.current.setCenter(pos);
+          mapRef.current.setZoom(16);
+          setMarker(pos);
+        } else {
+          setFallbackCentroid({ lat: latitude, lng: longitude });
+        }
+      },
+      (err) => {
+        setDetectingLocation(false);
+        console.warn("[Geolocation Warning]", err);
+        setStatus("Could not access GPS. Please use the search bar to locate your district.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [handleAreaUpdate, measuredAreaAcres]);
 
   // Google Maps Initialization
   useEffect(() => {
@@ -138,7 +209,7 @@ export default function FarmMapPicker({
           if (draftPathRef.current.length > 0) {
             draftPathRef.current.push(event.latLng);
             draftPolylineRef.current?.setPath(draftPathRef.current);
-            setStatus(`${draftPathRef.current.length} boundary points added. Click 'Finish Boundary' when complete.`);
+            setStatus(`${draftPathRef.current.length} boundary points placed. Click '✓ Finish Boundary' when done.`);
             return;
           }
 
@@ -152,7 +223,7 @@ export default function FarmMapPicker({
             strokeWeight: 3,
             path: draftPathRef.current,
           });
-          setStatus("First point placed. Continue clicking corners around your field boundary.");
+          setStatus("First corner marked. Click consecutive field corners around your plot boundary.");
         });
 
         finishDrawingRef.current = () => {
@@ -187,7 +258,11 @@ export default function FarmMapPicker({
               map.setCenter(place.geometry.location);
               map.setZoom(16);
               setMarker(place.geometry.location);
-              setStatus(`Location found: ${place.name || "Selected region"}`);
+              const lat = place.geometry.location.lat();
+              const lng = place.geometry.location.lng();
+              const dInfo = resolveDistrictFromCoords(lat, lng);
+              setStatus(`Location found: ${place.name || dInfo.district} (${dInfo.state})`);
+              setFarmName(`${place.name || dInfo.district} Plot`);
             }
           });
         }
@@ -197,34 +272,8 @@ export default function FarmMapPicker({
       .catch(() => {
         setMapError(true);
         setUseFallbackMode(true);
-        setStatus("Google Maps key unavailable or restricted. Switched to Standalone Visual Farm Planner.");
+        setStatus("Google Maps key restricted or unavailable. Switched to Interactive Vector Farm Planner.");
       });
-
-    function setMarker(location: google.maps.LatLng) {
-      markerRef.current?.setMap(null);
-      markerRef.current = new google.maps.Marker({
-        map: mapRef.current,
-        position: location,
-        title: "Farm Center",
-        draggable: true,
-      });
-      markerRef.current.addListener("dragend", () => {
-        const pos = markerRef.current?.getPosition();
-        if (pos) {
-          const points = polygonRef.current?.getPath().getArray().map((p) => p.toJSON()) || [];
-          handleAreaUpdate(measuredAreaAcres, points, pos.toJSON());
-        }
-      });
-    }
-
-    function updateGoogleMapArea(polygon: google.maps.Polygon) {
-      const sqMeters = google.maps.geometry.spherical.computeArea(polygon.getPath());
-      const acres = Math.max(0.05, sqMeters / 4046.8564224);
-      const points = polygon.getPath().getArray().map((p) => p.toJSON());
-      const center = markerRef.current?.getPosition()?.toJSON() || points[0] || defaultCenter;
-      handleAreaUpdate(acres, points, center);
-      setStatus(`Enclosed boundary: ${acres.toFixed(2)} acres (${(acres / 2.47105).toFixed(2)} ha). Drag vertices to fine-tune.`);
-    }
 
     return () => {
       drawingManager?.setMap(null);
@@ -244,7 +293,6 @@ export default function FarmMapPicker({
     setFallbackPoints(newPoints);
 
     if (newPoints.length >= 3) {
-      // Shoelace area formula for 2D polygon in pixel space scaled to realistic acres
       let areaPx = 0;
       for (let i = 0; i < newPoints.length; i++) {
         const j = (i + 1) % newPoints.length;
@@ -252,17 +300,17 @@ export default function FarmMapPicker({
         areaPx -= newPoints[j].x * newPoints[i].y;
       }
       areaPx = Math.abs(areaPx) / 2;
-      // 10,000 px^2 ≈ 1.25 acres scaling
-      const acres = Math.max(0.1, (areaPx / 8000));
-      
-      // Map pixels to coordinates offset from centroid
+      const acres = Math.max(0.1, areaPx / 800);
+
       const geoPoints = newPoints.map((p) => ({
         lat: Number((fallbackCentroid.lat + (p.y - 175) * 0.0001).toFixed(6)),
         lng: Number((fallbackCentroid.lng + (p.x - 250) * 0.0001).toFixed(6)),
       }));
 
       handleAreaUpdate(acres, geoPoints, fallbackCentroid);
-      setStatus(`Boundary plotted: ${acres.toFixed(2)} acres (${(acres / 2.47105).toFixed(2)} hectares).`);
+      const ha = (acres / 2.47105).toFixed(2);
+      const sqM = Math.round(acres * 4046.8564).toLocaleString();
+      setStatus(`✓ Boundary Plotted: ${acres.toFixed(2)} acres (${ha} ha / ${sqM} m²).`);
     } else {
       setStatus(`Point ${newPoints.length} placed. Place at least 3 points to enclose your field.`);
     }
@@ -272,25 +320,15 @@ export default function FarmMapPicker({
     setFallbackPoints([]);
     setMeasuredAreaAcres(0);
     onAreaChange(0);
-    setStatus("Canvas reset. Tap to plot boundary vertices.");
+    setStatus("Canvas reset. Tap corners on the grid to plot your field boundary.");
   }
 
   async function handleSaveFarm() {
     setSaving(true);
     setSaveMessage(null);
 
-    const allocated = sections.reduce((sum, s) => sum + s.area, 0);
     if (measuredAreaAcres <= 0) {
-      setSaveMessage({ type: "error", text: "Please draw or enclose a boundary on the map first." });
-      setSaving(false);
-      return;
-    }
-
-    if (allocated > measuredAreaAcres * 1.05) {
-      setSaveMessage({
-        type: "error",
-        text: `Allocated sections (${allocated.toFixed(2)} ac) exceed measured farm area (${measuredAreaAcres.toFixed(2)} ac).`,
-      });
+      setSaveMessage({ type: "error", text: "Please draw or enclose a field boundary on the map first." });
       setSaving(false);
       return;
     }
@@ -333,7 +371,7 @@ export default function FarmMapPicker({
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setSaveMessage({ type: "success", text: "Farm boundary & land sections saved successfully!" });
+        setSaveMessage({ type: "success", text: "Farm boundary & actual area saved successfully!" });
         onSaved?.(data.farm);
       } else {
         setSaveMessage({ type: "error", text: data?.error?.message || "Failed to save farm boundary." });
@@ -352,253 +390,236 @@ export default function FarmMapPicker({
   }
 
   const measuredHectares = (measuredAreaAcres / 2.47105).toFixed(2);
+  const measuredSqMeters = Math.round(measuredAreaAcres * 4046.8564224).toLocaleString();
 
   return (
-    <div className="picker-wrap space-y-4">
-      {/* Farm Name Bar */}
-      <div className="flex gap-3 items-center flex-wrap">
-        <label htmlFor="farm-name-input" className="text-xs font-semibold text-gray-700 uppercase">Farm Name:</label>
-        <input
-          id="farm-name-input"
-          type="text"
-          value={farmName}
-          onChange={(e) => setFarmName(e.target.value)}
-          placeholder="e.g. North Canal Plot"
-          className="p-2 border rounded text-xs flex-1 max-w-sm bg-white font-medium"
-        />
-        <div className="ml-auto flex items-center gap-2 text-xs">
-          <span className="font-semibold text-emerald-800">
-            {measuredAreaAcres.toFixed(2)} Acres
-          </span>
-          <span className="text-gray-400">|</span>
-          <span className="text-gray-600 font-medium">
-            {measuredHectares} Hectares
-          </span>
+    <div className="picker-wrap space-y-5">
+      {/* Top Header & Geospatial Measurement Banner */}
+      <div className="flex gap-4 items-center justify-between flex-wrap p-4 rounded-2xl bg-[var(--bg-surface-accent)] border border-[var(--border-accent)]">
+        <div className="flex items-center gap-3 flex-1 min-w-[260px]">
+          <label htmlFor="farm-name-input" className="text-xs font-bold text-[var(--color-primary-text)] uppercase tracking-wider shrink-0 font-['Space_Grotesk']">
+            Plot Name:
+          </label>
+          <input
+            id="farm-name-input"
+            type="text"
+            value={farmName}
+            onChange={(e) => setFarmName(e.target.value)}
+            placeholder="e.g. North Canal Field"
+            className="agri-input font-bold max-w-sm"
+          />
+        </div>
+
+        {/* Real-Time Live Area Display in Acres, Hectares & Sq Meters */}
+        <div className="flex items-center gap-4 bg-[var(--bg-surface)] px-4 py-2 rounded-xl border border-[var(--border-strong)] shadow-card">
+          <div className="text-right">
+            <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">
+              Geodesic Computed Area
+            </span>
+            <div className="flex items-center gap-2">
+              <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--color-primary)]">
+                {measuredAreaAcres.toFixed(2)} Acres
+              </strong>
+              <span className="text-[var(--border-strong)]">·</span>
+              <span className="font-semibold text-xs text-[var(--text-secondary)]">{measuredHectares} ha</span>
+              <span className="text-[var(--border-strong)]">·</span>
+              <span className="text-[var(--text-muted)] font-mono text-xs">{measuredSqMeters} m²</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Map Toolbar */}
-      <div className="picker-toolbar flex gap-2 flex-wrap items-center">
-        {!useFallbackMode && apiKey ? (
-          <>
+      {/* Map Toolbar with "Use My Location" & Search */}
+      <div className="picker-toolbar flex gap-3 flex-wrap items-center justify-between">
+        <div className="flex gap-2.5 items-center flex-1 min-w-[280px]">
+          {/* Prominent "Use My Location" Button */}
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={detectingLocation}
+            className="agri-btn-primary shrink-0"
+            title="Detect GPS coordinates and center map"
+          >
+            <span>📍</span>
+            <span>{detectingLocation ? "Detecting GPS..." : "Use My Location"}</span>
+          </button>
+
+          {!useFallbackMode && apiKey ? (
             <input
               ref={searchElement}
               aria-label="Search farm location"
-              placeholder="Search district, village or landmark..."
-              className="flex-1 min-w-[200px] p-2 border rounded text-xs"
+              placeholder="Search village, mandi, district or landmark..."
+              className="agri-input flex-1"
             />
+          ) : (
+            <select
+              value={`${fallbackCentroid.lat},${fallbackCentroid.lng}`}
+              onChange={(e) => {
+                const [lat, lng] = e.target.value.split(",").map(Number);
+                setFallbackCentroid({ lat, lng });
+                const dInfo = resolveDistrictFromCoords(lat, lng);
+                setFarmName(`${dInfo.district} Farm Plot`);
+              }}
+              className="agri-select flex-1"
+            >
+              {DISTRICT_MASTER.map((d) => (
+                <option key={d.districtId} value={`${d.lat},${d.lng}`}>
+                  {d.district}, {d.state} ({d.zone})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="flex gap-2 items-center">
+          {!useFallbackMode && apiKey && (
             <button
               type="button"
               onClick={() => finishDrawingRef.current()}
-              className="primary-button text-xs py-1.5 px-3"
+              className="agri-btn-primary"
             >
-              ✓ Finish Boundary
+              ✓ Complete Boundary
             </button>
-          </>
-        ) : (
-          <div className="flex justify-between items-center w-full gap-2 flex-wrap">
-            <span className="text-xs text-gray-600 font-medium">
-              Interactive Vector Farm Planner (Offline/Dev Mode)
-            </span>
-            <div className="flex gap-2">
-              <select
-                value={`${fallbackCentroid.lat},${fallbackCentroid.lng}`}
-                onChange={(e) => {
-                  const [lat, lng] = e.target.value.split(",").map(Number);
-                  setFallbackCentroid({ lat, lng });
-                }}
-                className="p-1.5 border rounded text-xs bg-white"
-              >
-                <option value="30.2110,74.9455">Bathinda, Punjab</option>
-                <option value="29.6857,76.9905">Karnal, Haryana</option>
-                <option value="25.3176,82.9739">Varanasi, UP</option>
-                <option value="19.9975,73.7898">Nashik, Maharashtra</option>
-              </select>
-              <button
-                type="button"
-                onClick={resetFallbackPoints}
-                className="text-button text-xs py-1 px-2.5"
-              >
-                Reset Boundary
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+          {useFallbackMode && (
+            <button
+              type="button"
+              onClick={resetFallbackPoints}
+              className="agri-btn-secondary"
+            >
+              Reset Points
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Map Display (Google Maps OR Vector Canvas Fallback) */}
+      {/* Status Bar */}
+      <div className="text-xs text-[var(--color-primary-text)] bg-[var(--color-primary-light)] px-3.5 py-2 rounded-xl border border-[var(--border-accent)] font-medium flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse" />
+        <span>{status}</span>
+      </div>
+
+      {/* Map Display (Google Satellite Maps OR Vector Canvas Fallback) */}
       {!useFallbackMode && apiKey && !mapError ? (
         <div
           ref={mapElement}
-          className="real-map min-h-[380px] w-full rounded-lg border shadow-inner bg-gray-100"
+          className="real-map min-h-[460px] w-full rounded-2xl border border-[var(--border-default)] shadow-card overflow-hidden"
           aria-label="Google Map for selecting farm boundary"
         />
       ) : (
-        <div className="fallback-map-container bg-slate-900 rounded-lg p-3 border relative overflow-hidden">
-          <div className="text-[11px] text-emerald-400 font-mono mb-2 flex justify-between">
-            <span>GRID: {fallbackCentroid.lat}°N, {fallbackCentroid.lng}°E</span>
-            <span>TAP CORNERS TO DRAW POLYGON</span>
+        <div className="fallback-map-container bg-slate-950 rounded-2xl p-4 border border-[var(--border-default)] relative overflow-hidden shadow-card">
+          <div className="text-xs text-emerald-400 font-mono mb-3 flex justify-between">
+            <span>GRID CENTROID: {fallbackCentroid.lat.toFixed(4)}°N, {fallbackCentroid.lng.toFixed(4)}°E</span>
+            <span>CLICK CORNERS TO ENCLOSE POLYGON</span>
           </div>
 
           <svg
-            className="w-full h-[320px] bg-slate-800/80 rounded border border-slate-700 cursor-crosshair"
+            className="w-full h-[380px] bg-slate-900/90 rounded-xl border border-slate-800 cursor-crosshair"
             onClick={handleFallbackCanvasClick}
           >
             <defs>
               <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse">
-                <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#334155" strokeWidth="0.5" />
+                <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#1e293b" strokeWidth="0.5" />
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
 
-            {/* Polygon fill */}
             {fallbackPoints.length >= 3 && (
               <polygon
                 points={fallbackPoints.map((p) => `${p.x},${p.y}`).join(" ")}
-                fill="rgba(16, 185, 129, 0.35)"
-                stroke="#10b981"
-                strokeWidth="2.5"
+                fill="#10b981"
+                fillOpacity="0.4"
+                stroke="#059669"
+                strokeWidth="3"
               />
             )}
 
-            {/* In-progress Polyline */}
-            {fallbackPoints.length < 3 && fallbackPoints.length > 1 && (
-              <polyline
-                points={fallbackPoints.map((p) => `${p.x},${p.y}`).join(" ")}
-                fill="none"
-                stroke="#10b981"
-                strokeWidth="2"
-                strokeDasharray="4"
-              />
-            )}
-
-            {/* Point Markers */}
             {fallbackPoints.map((p, idx) => (
-              <g key={idx}>
-                <circle cx={p.x} cy={p.y} r="5" fill="#10b981" stroke="#ffffff" strokeWidth="1.5" />
-                <text x={p.x + 8} y={p.y - 6} fill="#a7f3d0" fontSize="10" fontFamily="monospace">
-                  P{idx + 1}
-                </text>
-              </g>
+              <circle key={idx} cx={p.x} cy={p.y} r="6" fill="#10b981" stroke="#ffffff" strokeWidth="2" />
             ))}
           </svg>
         </div>
       )}
 
-      {/* Status Bar */}
-      <div className={`map-status p-2.5 rounded text-xs ${mapsLoaded || fallbackPoints.length > 0 ? "bg-emerald-50 text-emerald-800" : "bg-gray-100 text-gray-700"}`}>
-        {status}
-      </div>
-
-      {/* Land Subdivision Section */}
-      <div className="panel space-y-3">
-        <div className="flex justify-between items-center flex-wrap gap-2">
-          <div>
-            <strong className="text-sm text-gray-900">Divide Farm into Land Sections</strong>
-            <p className="text-xs text-gray-500">Allocate acreage across candidate crops for portfolio planning.</p>
-          </div>
-          <span className="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-800">
-            {sections.reduce((sum, s) => sum + s.area, 0).toFixed(2)} / {measuredAreaAcres.toFixed(2)} acres allocated
-          </span>
+      {/* Agronomic Preferences & Sections */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+        <div className="agri-card p-4 space-y-1.5">
+          <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+            Water Source Access:
+          </label>
+          <select
+            value={water}
+            onChange={(e) => setWater(e.target.value)}
+            className="agri-select"
+          >
+            <option value="Low">Low (Rainfed / Limited Tanker)</option>
+            <option value="Medium">Medium (Canal / Shared Tube Well)</option>
+            <option value="High">High (Dedicated Borewell / Drip)</option>
+          </select>
         </div>
 
-        <div className="space-y-2">
-          {sections.map((sec, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <select
-                aria-label={`Crop for section ${idx + 1}`}
-                value={sec.crop}
-                onChange={(e) => updateSection(idx, "crop", e.target.value)}
-                className="p-2 border rounded text-xs bg-white font-medium flex-1"
-              >
-                <option value="Wheat">Wheat</option>
-                <option value="Mustard">Mustard</option>
-                <option value="Chickpea">Chickpea (Gram)</option>
-                <option value="Maize">Maize</option>
-                <option value="Cotton">Cotton</option>
-                <option value="Soybean">Soybean</option>
-                <option value="Onion">Onion</option>
-                <option value="Fallow">Fallow / Rest</option>
-              </select>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={sec.area || ""}
-                onChange={(e) => updateSection(idx, "area", e.target.value)}
-                placeholder="Acres"
-                className="p-2 border rounded text-xs w-28 bg-white"
-              />
-              {sections.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setSections((curr) => curr.filter((_, i) => i !== idx))}
-                  className="text-rose-600 hover:text-rose-800 p-2 text-sm font-bold"
-                  aria-label="Remove section"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
+        <div className="agri-card p-4 space-y-1.5">
+          <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+            Risk Appetite:
+          </label>
+          <select
+            value={risk}
+            onChange={(e) => setRisk(e.target.value)}
+            className="agri-select"
+          >
+            <option value="Conservative">Conservative (MSP Floor Focus)</option>
+            <option value="Balanced">Balanced (Optimal Multi-Crop Split)</option>
+            <option value="Growth">Growth (High-Margin Cash Crops)</option>
+          </select>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setSections((curr) => [...curr, { crop: "Mustard", area: 0 }])}
-          className="text-button text-xs"
-        >
-          + Add Section Subdivision
-        </button>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t text-xs">
-          <div>
-            <label htmlFor="water-select" className="block text-gray-600 font-medium mb-1">Water Access:</label>
-            <select
-              id="water-select"
-              value={water}
-              onChange={(e) => setWater(e.target.value)}
-              className="p-2 border rounded w-full bg-white"
-            >
-              <option value="Low">Low (Rainfed / Limited)</option>
-              <option value="Medium">Medium (Borewell / Tube-well)</option>
-              <option value="High">High (Canal Assured Irrigation)</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="risk-select" className="block text-gray-600 font-medium mb-1">Risk Preference:</label>
-            <select
-              id="risk-select"
-              value={risk}
-              onChange={(e) => setRisk(e.target.value)}
-              className="p-2 border rounded w-full bg-white"
-            >
-              <option value="Conservative">Conservative (Prioritize MSP Floor Safety)</option>
-              <option value="Balanced">Balanced (Optimal Yield & Return)</option>
-              <option value="Growth">Growth-Focused (High-Value Cash Crops)</option>
-            </select>
+        <div className="agri-card p-4 space-y-1.5">
+          <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+            Primary Crop Section:
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={sections[0]?.crop || "Wheat"}
+              onChange={(e) => updateSection(0, "crop", e.target.value)}
+              className="agri-input w-1/2"
+              placeholder="Crop Name"
+            />
+            <input
+              type="number"
+              value={sections[0]?.area || measuredAreaAcres}
+              onChange={(e) => updateSection(0, "area", e.target.value)}
+              className="agri-input w-1/2"
+              placeholder="Acres"
+            />
           </div>
         </div>
       </div>
 
+      {/* Save Notification */}
       {saveMessage && (
         <div
-          className={`p-3 rounded text-xs font-medium ${
-            saveMessage.type === "success" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-rose-50 text-rose-800 border border-rose-200"
+          className={`p-3.5 rounded-xl text-xs font-bold ${
+            saveMessage.type === "success"
+              ? "agri-badge-emerald border"
+              : "agri-badge-rose border"
           }`}
         >
           {saveMessage.text}
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={handleSaveFarm}
-        disabled={saving}
-        className="primary-button w-full py-2.5 text-sm font-semibold"
-      >
-        {saving ? "Saving Farm Boundary..." : initialFarm ? "Update Farm Boundary & Inputs" : "Save Farm & Land Inputs"}
-      </button>
+      {/* Save Button */}
+      <div className="flex justify-end gap-3 pt-2">
+        <button
+          type="button"
+          onClick={handleSaveFarm}
+          disabled={saving || measuredAreaAcres <= 0}
+          className="agri-btn-primary py-3 px-8 text-sm"
+        >
+          {saving ? "Saving Field Boundary to PostGIS..." : "Save Farm Boundary & Optimize Plan →"}
+        </button>
+      </div>
     </div>
   );
 }

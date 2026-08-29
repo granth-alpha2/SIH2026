@@ -3,12 +3,35 @@
 import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import type { MandiPriceRecord } from "@/lib/market-service";
+import { resolveDistrictFromCoords } from "@/lib/geo-service";
 
 export default function MarketsPage() {
   const [selectedCrop, setSelectedCrop] = useState<string>("All");
   const [selectedState, setSelectedState] = useState<string>("All");
   const [markets, setMarkets] = useState<MandiPriceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detectingGps, setDetectingGps] = useState(false);
+
+  function handleUseMyLocation() {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    setDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setDetectingGps(false);
+        const { latitude, longitude } = position.coords;
+        const dInfo = resolveDistrictFromCoords(latitude, longitude);
+        setSelectedState(dInfo.state);
+      },
+      (err) => {
+        setDetectingGps(false);
+        console.warn("[Market Geolocation Warning]", err);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -37,23 +60,43 @@ export default function MarketsPage() {
   }, [selectedCrop, selectedState]);
 
   return (
-    <AppShell pageTitle="Market watch">
-      <section className="page-wrap feature-page max-w-6xl mx-auto space-y-4">
-        <header className="feature-header flex justify-between items-start flex-wrap gap-4 mb-2">
-          <div>
-            <p className="eyebrow">MARKET INTELLIGENCE & MSP SAFETY</p>
-            <h1>APMC Mandi Watch & Price Trends</h1>
-            <p className="subhead">
+    <AppShell pageTitle="APMC Market Watch">
+      <div className="page-container space-y-6">
+        {/* Header Row */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="agri-badge agri-badge-emerald">Agmarknet Live Feeds</span>
+              <span className="text-xs text-[var(--text-muted)] font-['Space_Grotesk']">
+                CACP Official MSP Benchmarks
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              APMC Mandi Watch & Price Trends
+            </h1>
+            <p className="text-sm text-[var(--text-secondary)]">
               Modal prices, 6-month historical monthly trends, price volatility indices, and Government MSP safety floor comparisons.
             </p>
           </div>
-          <div className="flex gap-2 flex-wrap">
+
+          <div className="flex gap-2.5 flex-wrap items-center shrink-0">
+            <button
+              type="button"
+              onClick={handleUseMyLocation}
+              disabled={detectingGps}
+              className="agri-btn-primary"
+              title="Detect GPS coordinates and filter to local state APMCs"
+            >
+              <span>📍</span>
+              <span>{detectingGps ? "Locating..." : "Use My Location"}</span>
+            </button>
+
             <select
               value={selectedCrop}
               onChange={(e) => setSelectedCrop(e.target.value)}
-              className="p-2 border rounded text-xs bg-white font-medium"
+              className="agri-select max-w-[160px]"
             >
-              <option value="All">All Commodities</option>
+              <option value="All">All Crops</option>
               <option value="Wheat">Wheat</option>
               <option value="Mustard">Mustard</option>
               <option value="Chickpea">Chickpea (Gram)</option>
@@ -67,7 +110,7 @@ export default function MarketsPage() {
             <select
               value={selectedState}
               onChange={(e) => setSelectedState(e.target.value)}
-              className="p-2 border rounded text-xs bg-white font-medium"
+              className="agri-select max-w-[160px]"
             >
               <option value="All">All States</option>
               <option value="Punjab">Punjab</option>
@@ -75,38 +118,52 @@ export default function MarketsPage() {
               <option value="Maharashtra">Maharashtra</option>
               <option value="Madhya Pradesh">Madhya Pradesh</option>
               <option value="Uttar Pradesh">Uttar Pradesh</option>
+              <option value="Rajasthan">Rajasthan</option>
+              <option value="Gujarat">Gujarat</option>
             </select>
           </div>
         </header>
 
-        {loading && <div className="panel text-center py-10 text-gray-500">Fetching mandi market feeds...</div>}
+        {loading && (
+          <div className="agri-card p-12 text-center text-[var(--text-muted)] space-y-2">
+            <div className="inline-block w-8 h-8 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium">Fetching live APMC wholesale price feeds...</p>
+          </div>
+        )}
 
         {!loading && markets.length === 0 && (
-          <div className="panel text-center py-10 text-gray-500">
-            <p className="font-semibold text-sm">No mandi price feeds found matching your criteria.</p>
+          <div className="agri-card p-12 text-center text-[var(--text-muted)]">
+            <p className="text-sm font-semibold">No mandi price feeds found matching your criteria.</p>
           </div>
         )}
 
         {!loading && markets.length > 0 && (
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {markets.map((item) => {
               const aboveMsp = item.mspPrice !== null ? item.modalPrice >= item.mspPrice : null;
+
               return (
-                <article key={item.cropId} className="panel flex flex-col justify-between">
-                  <div>
+                <article
+                  key={item.cropId}
+                  className="agri-card p-5 flex flex-col justify-between hover:border-[var(--border-strong)] transition-all space-y-4"
+                >
+                  <div className="space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <h2 className="text-base font-bold text-gray-900">{item.cropName}</h2>
-                          <span className="text-xs text-gray-500 font-normal">({item.hindiName})</span>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                            {item.cropName}
+                          </h2>
+                          <span className="text-xs text-[var(--text-muted)]">({item.hindiName})</span>
                         </div>
-                        <p className="text-xs text-gray-500">{item.mandiName} · {item.state}</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                          {item.mandiName} · {item.state}
+                        </p>
                       </div>
+
                       <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded ${
-                          item.trend30DayPct >= 0
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-rose-100 text-rose-800"
+                        className={`agri-badge ${
+                          item.trend30DayPct >= 0 ? "agri-badge-emerald" : "agri-badge-rose"
                         }`}
                       >
                         {item.trend30DayPct >= 0 ? `+${item.trend30DayPct}% (30d)` : `${item.trend30DayPct}% (30d)`}
@@ -114,18 +171,18 @@ export default function MarketsPage() {
                     </div>
 
                     {/* Price Hero */}
-                    <div className="mt-3 flex items-baseline gap-2">
-                      <strong className="text-2xl font-black text-gray-900">
+                    <div className="flex items-baseline gap-2 pt-1">
+                      <strong className="text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
                         ₹{item.modalPrice.toLocaleString("en-IN")}
                       </strong>
-                      <span className="text-xs text-gray-500">/ {item.unit}</span>
+                      <span className="text-xs text-[var(--text-muted)]">/ {item.unit}</span>
                       <span
-                        className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded ${
+                        className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                           item.volatility === "Low"
-                            ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            ? "agri-badge-sky"
                             : item.volatility === "Medium"
-                            ? "bg-amber-50 text-amber-700 border border-amber-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-200"
+                            ? "agri-badge-amber"
+                            : "agri-badge-rose"
                         }`}
                       >
                         {item.volatility} Volatility ({item.volatilityPct}%)
@@ -133,20 +190,28 @@ export default function MarketsPage() {
                     </div>
 
                     {/* Range & Arrivals */}
-                    <div className="mt-3 pt-2.5 border-t grid grid-cols-2 gap-2 text-xs">
+                    <div className="pt-2.5 border-t border-[var(--border-subtle)] grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <span className="text-gray-400 block text-[10px] uppercase">Daily Mandi Range</span>
-                        <span className="text-gray-800 font-medium">₹{item.minPrice} - ₹{item.maxPrice}</span>
+                        <span className="text-[var(--text-muted)] block text-[10px] uppercase font-semibold">
+                          Daily Mandi Range
+                        </span>
+                        <span className="text-[var(--text-primary)] font-medium">
+                          ₹{item.minPrice} - ₹{item.maxPrice}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-gray-400 block text-[10px] uppercase">Market Arrivals</span>
-                        <span className="text-gray-800 font-medium">{item.arrivalsTonnes} Tonnes</span>
+                        <span className="text-[var(--text-muted)] block text-[10px] uppercase font-semibold">
+                          Market Arrivals
+                        </span>
+                        <span className="text-[var(--text-primary)] font-medium">
+                          {item.arrivalsTonnes} Tonnes
+                        </span>
                       </div>
                     </div>
 
                     {/* 6-Month Trend Mini Sparkline Bar Chart */}
-                    <div className="mt-3 pt-2.5 border-t">
-                      <span className="text-[10px] uppercase text-gray-400 block font-semibold mb-1.5">
+                    <div className="pt-2.5 border-t border-[var(--border-subtle)]">
+                      <span className="text-[10px] uppercase text-[var(--text-muted)] block font-semibold mb-2">
                         6-Month Modal Price Trend
                       </span>
                       <div className="flex items-end gap-1.5 h-12 pt-2">
@@ -162,13 +227,12 @@ export default function MarketsPage() {
                             <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative">
                               <div
                                 style={{ height: `${heightPct}%` }}
-                                className="w-full bg-emerald-700/80 group-hover:bg-emerald-600 rounded-t transition"
+                                className="w-full bg-[var(--color-primary)] opacity-85 group-hover:opacity-100 rounded-t transition"
                               />
-                              <span className="text-[8px] text-gray-400 font-mono">
+                              <span className="text-[9px] text-[var(--text-muted)] font-mono">
                                 {pt.month.slice(0, 3)}
                               </span>
-                              {/* Tooltip */}
-                              <div className="hidden group-hover:block absolute bottom-12 bg-gray-900 text-white text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap z-10 shadow">
+                              <div className="hidden group-hover:block absolute bottom-12 bg-black/90 text-white text-[9px] px-2 py-0.5 rounded whitespace-nowrap z-10 shadow">
                                 ₹{pt.modalPrice} ({pt.arrivalsTonnes}t)
                               </div>
                             </div>
@@ -179,18 +243,18 @@ export default function MarketsPage() {
                   </div>
 
                   {/* MSP & Procurement Signal */}
-                  <div className="mt-4 pt-2.5 border-t space-y-1.5 text-xs">
+                  <div className="pt-3 border-t border-[var(--border-subtle)] space-y-1.5 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-[11px]">
+                      <span className="text-[var(--text-muted)] text-xs">
                         Govt MSP Floor:{" "}
-                        <strong className="text-gray-800">
-                          {item.mspPrice !== null ? `₹${item.mspPrice.toLocaleString("en-IN")}` : "No MSP (Free Market)"}
+                        <strong className="text-[var(--text-primary)]">
+                          {item.mspPrice !== null ? `₹${item.mspPrice.toLocaleString("en-IN")}` : "No MSP"}
                         </strong>
                       </span>
                       {aboveMsp !== null && (
                         <span
-                          className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                            aboveMsp ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                          className={`agri-badge ${
+                            aboveMsp ? "agri-badge-emerald" : "agri-badge-amber"
                           }`}
                         >
                           {aboveMsp ? `+${item.mspDifferencePct}% above MSP` : "Below MSP"}
@@ -198,9 +262,9 @@ export default function MarketsPage() {
                       )}
                     </div>
 
-                    <div className="flex justify-between items-center text-[10px] pt-1">
-                      <span className="text-gray-500 font-medium">Safety: {item.procurementSafety}</span>
-                      <span className="text-emerald-700 font-semibold uppercase">{item.provenance.sourceType}</span>
+                    <div className="flex justify-between items-center text-[10px] pt-1 text-[var(--text-muted)]">
+                      <span>Safety: {item.procurementSafety}</span>
+                      <span className="text-[var(--color-primary)] font-semibold uppercase">{item.provenance.sourceType}</span>
                     </div>
                   </div>
                 </article>
@@ -209,15 +273,15 @@ export default function MarketsPage() {
           </section>
         )}
 
-        <section className="panel text-xs text-gray-500 leading-relaxed space-y-1">
+        <section className="p-4 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] text-xs text-[var(--text-secondary)] leading-relaxed space-y-1">
           <p>
-            <strong>Data Provenance & Architecture:</strong> Sourced through standard Agmarknet APMC mandi feeds and official Central Government CACP notifications.
+            <strong className="text-[var(--text-primary)]">Data Provenance & Governance:</strong> Sourced through official Agmarknet APMC mandi feeds and Ministry of Agriculture CACP notifications.
           </p>
-          <p className="text-[11px] text-gray-400">
-            * MSP procurement is governed by official nodal agencies (FCI, NAFED, CCI). In free markets without MSP (e.g. Onion, Potato), price risk relies on seasonal storage and staggered harvesting.
+          <p className="text-[11px] text-[var(--text-muted)]">
+            * MSP procurement is governed by official nodal agencies (FCI, NAFED, CCI). In free markets without MSP (e.g. Onion, Potato), price risk relies on seasonal cold storage and staggered harvesting.
           </p>
         </section>
-      </section>
+      </div>
     </AppShell>
   );
 }

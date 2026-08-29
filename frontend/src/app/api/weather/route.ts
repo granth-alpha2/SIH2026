@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAgriWeather } from "@/lib/weather-service";
 import { getFarm } from "../farms/repository";
+import { resolveDistrictFromCoords, DISTRICT_MASTER } from "@/lib/geo-service";
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -9,9 +11,9 @@ export async function GET(request: Request) {
   const rawLng = searchParams.get("lng");
   const nameParam = searchParams.get("locationName");
 
-  let lat = 30.2110;
-  let lng = 74.9455;
-  let locationName = nameParam || "Bathinda, Punjab (Trans-Gangetic Plains)";
+  let lat = DISTRICT_MASTER[0].lat;
+  let lng = DISTRICT_MASTER[0].lng;
+  let locationName = nameParam || `${DISTRICT_MASTER[0].district}, ${DISTRICT_MASTER[0].state} (${DISTRICT_MASTER[0].zone})`;
 
   if (farmId) {
     try {
@@ -19,7 +21,8 @@ export async function GET(request: Request) {
       if (farm && farm.center) {
         lat = farm.center.lat;
         lng = farm.center.lng;
-        locationName = `${farm.name} (${lat.toFixed(2)}°N, ${lng.toFixed(2)}°E)`;
+        const dInfo = resolveDistrictFromCoords(lat, lng);
+        locationName = `${farm.name} (${dInfo.district}, ${dInfo.state})`;
       }
     } catch {
       // Fallback to coordinates
@@ -30,8 +33,11 @@ export async function GET(request: Request) {
     if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
       lat = parsedLat;
       lng = parsedLng;
+      const dInfo = resolveDistrictFromCoords(lat, lng);
+      locationName = nameParam || `${dInfo.district}, ${dInfo.state} (${dInfo.agroClimaticZone})`;
     }
   }
+
 
   try {
     const weather = await getAgriWeather(lat, lng, locationName);

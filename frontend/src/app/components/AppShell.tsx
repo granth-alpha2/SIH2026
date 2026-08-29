@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
+import DemoTourBanner from "./DemoTourBanner";
+import ThemeToggle from "./ThemeToggle";
 
 const navigation = [
-  ["Overview", "/", "⌂"],
-  ["My farms", "/farms", "▧"],
-  ["Crop database", "/crops", "✦"],
-  ["Preferences", "/preferences", "⚙"],
-  ["Crop plan", "/crop-plan", "◒"],
-  ["Market watch", "/markets", "↗"],
-  ["Weather", "/weather", "☼"],
-  ["Assistant", "/assistant", "◌"],
+  { label: "Overview", href: "/", icon: "⌂" },
+  { label: "My Farms", href: "/farms", icon: "▧" },
+  { label: "Recommendations", href: "/recommendations", icon: "✦" },
+  { label: "Crop Plan", href: "/crop-plan", icon: "◒" },
+  { label: "Market Watch", href: "/markets", icon: "↗" },
+  { label: "Weather", href: "/weather", icon: "☼" },
+  { label: "Crop Database", href: "/crops", icon: "🌿" },
+  { label: "AI Agronomist", href: "/assistant", icon: "◌" },
+  { label: "Preferences", href: "/preferences", icon: "⚙" },
+  { label: "Admin Telemetry", href: "/admin", icon: "⚡" },
 ] as const;
 
 type AppShellProps = { children: ReactNode; pageTitle: string };
@@ -29,6 +33,7 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -41,7 +46,7 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
           }
         }
       } catch {
-        // Fallback to default
+        // Fallback
       }
     }
     loadUser();
@@ -57,81 +62,186 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
     }
   }
 
-  const initials = user?.phone ? user.phone.slice(-2) : "RK";
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join("")
+    : user?.phone
+    ? user.phone.slice(-2)
+    : "FP";
+
   const displayName = user?.name || "Farmer Workspace";
 
   return (
     <main className="app-shell">
+      {/* 1. Desktop Sidebar */}
       <aside className="sidebar">
+        {/* Brand Logo */}
         <Link className="brand" href="/">
           <span className="brand-mark">✳</span>
-          <span>agriprofit</span>
+          <span className="tracking-tight">agriprofit</span>
         </Link>
-        <div className="profile">
-          <div className="avatar" aria-hidden="true">
+
+        {/* Active Profile Pill */}
+        <div className="profile-card">
+          <div className="profile-avatar" aria-hidden="true">
             {initials}
           </div>
-          <div>
-            <strong>{displayName}</strong>
-            <small>{user?.phone ? `+91 ${user.phone}` : "Development mode"}</small>
+          <div className="min-w-0 flex-1">
+            <strong className="block text-xs font-bold font-['Space_Grotesk'] text-[var(--text-primary)] truncate">
+              {displayName}
+            </strong>
+            <small className="block text-[11px] text-[var(--text-muted)] truncate">
+              {user?.phone ? `+91 ${user.phone}` : "Active Field Plot"}
+            </small>
           </div>
         </div>
-        <nav aria-label="Main navigation">
-          {navigation.map(([label, href, icon]) => (
-            <Link
-              key={href}
-              className={`nav-item ${
-                pathname === href || (href !== "/" && pathname.startsWith(href)) ? "active" : ""
-              }`}
-              href={href}
-            >
-              <span aria-hidden="true">{icon}</span>
-              {label}
-            </Link>
-          ))}
+
+        {/* Main Navigation Items */}
+        <nav className="flex-1 space-y-0.5" aria-label="Main Navigation">
+          {navigation.map(({ label, href, icon }) => {
+            const isActive =
+              pathname === href || (href !== "/" && pathname.startsWith(href));
+            return (
+              <Link
+                key={href}
+                className={`nav-item ${isActive ? "active" : ""}`}
+                href={href}
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  {icon}
+                </span>
+                <span>{label}</span>
+                {isActive && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]" />
+                )}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="sidebar-bottom">
-          <Link className="nav-item" href="/notifications">
-            <span aria-hidden="true">♧</span>Notifications
+
+        {/* Sidebar Footer */}
+        <div className="pt-4 border-t border-[var(--border-subtle)] space-y-1">
+          <Link
+            className="nav-item text-xs"
+            href="/notifications"
+          >
+            <span className="nav-icon" aria-hidden="true">♧</span>
+            <span>Alerts & Notifications</span>
           </Link>
           <button
             type="button"
             onClick={handleLogout}
-            className="nav-item w-full text-left text-rose-300 hover:text-rose-100 hover:bg-rose-950/40 mt-1 cursor-pointer"
+            className="nav-item text-xs w-full text-left text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
           >
-            <span aria-hidden="true">⇦</span>Sign out
+            <span className="nav-icon" aria-hidden="true">⇦</span>
+            <span>Sign out</span>
           </button>
-          <p className="mt-3 text-[11px] text-gray-400">
-            AgriProfit v1.0
-            <br />
-            <b>Farmer decision workspace.</b>
-          </p>
         </div>
       </aside>
-      <section className="content">
+
+      {/* 2. Main Content Area */}
+      <section className="content-wrap">
+        {/* Global Topbar Header */}
         <header className="topbar">
-          <div className="mobile-brand">
-            <span className="brand-mark">✳</span> agriprofit
-          </div>
-          <div className="breadcrumbs">
-            Workspace <span>/</span> <b>{pageTitle}</b>
-          </div>
-          <div className="top-actions">
-            <Link className="icon-button" aria-label="Open notifications" href="/notifications">
-              ♧
-            </Link>
+          {/* Mobile Menu Button */}
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={handleLogout}
-              className="text-[11px] text-gray-600 hover:text-rose-600 font-medium px-2 py-1 border rounded hidden sm:inline-block cursor-pointer"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] text-sm font-bold"
+              aria-label="Toggle navigation menu"
             >
-              Sign out
+              ☰
             </button>
-            <span className="mini-avatar" aria-label="Authenticated farmer account">
-              {initials}
-            </span>
+
+            {/* Breadcrumb Path */}
+            <div className="breadcrumbs flex items-center gap-2 text-xs font-['Space_Grotesk'] text-[var(--text-muted)]">
+              <span>AgriProfit</span>
+              <span className="opacity-40">/</span>
+              <b className="text-[var(--text-primary)] font-bold">{pageTitle}</b>
+            </div>
+          </div>
+
+          {/* Right Action Controls */}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+
+            <Link
+              className="p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors relative"
+              aria-label="View notifications"
+              href="/notifications"
+            >
+              <span className="text-sm">🔔</span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--color-rose)]" />
+            </Link>
+
+            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-[var(--border-subtle)]">
+              <div className="w-8 h-8 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] font-bold text-xs flex items-center justify-center border border-[var(--border-accent)]">
+                {initials}
+              </div>
+            </div>
           </div>
         </header>
+
+        {/* Mobile Slide-Over Menu */}
+        {mobileMenuOpen && (
+          <div
+            className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <div
+              className="w-72 bg-[var(--bg-surface)] border-r border-[var(--border-default)] p-4 flex flex-col h-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-[var(--border-subtle)] mb-4">
+                <Link className="brand mb-0" href="/" onClick={() => setMobileMenuOpen(false)}>
+                  <span className="brand-mark">✳</span>
+                  <span>agriprofit</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <nav className="flex-1 space-y-1 overflow-y-auto">
+                {navigation.map(({ label, href, icon }) => (
+                  <Link
+                    key={href}
+                    className={`nav-item ${pathname === href ? "active" : ""}`}
+                    href={href}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span className="nav-icon">{icon}</span>
+                    <span>{label}</span>
+                  </Link>
+                ))}
+              </nav>
+
+              <div className="pt-4 border-t border-[var(--border-subtle)]">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="nav-item text-xs w-full text-left text-rose-500"
+                >
+                  <span>⇦</span>
+                  <span>Sign out</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Demo Tour Banner (If applicable) */}
+        <DemoTourBanner />
+
+        {/* Page Content Viewport */}
         {children}
       </section>
     </main>

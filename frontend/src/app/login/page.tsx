@@ -1,32 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "../components/ThemeToggle";
+
+const DEMO_FARMERS = [
+  { name: "Gurpreet Singh", state: "Punjab", crop: "Wheat & Mustard", phone: "9876543210" },
+  { name: "Ramesh Yadav", state: "Uttar Pradesh", crop: "Potato & Rice", phone: "9812345678" },
+  { name: "Anand Patil", state: "Maharashtra", crop: "Cotton & Sugarcane", phone: "9765432109" },
+];
 
 export default function LoginPage() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
+  const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [devHint, setDevHint] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [resendCountdown, setResendCountdown] = useState(0);
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (!phone || phone.length < 10) {
-      setError("Please enter a valid 10-digit mobile number.");
+  const digitInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
+
+  async function handleSendOtp(customPhone?: string) {
+    const targetPhone = (customPhone || phone).replace(/\D/g, "");
+    if (targetPhone.length !== 10 || !/^[6-9]/.test(targetPhone)) {
+      setError("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
       return;
     }
+
     setError("");
+    setSuccessMsg("");
     setLoading(true);
 
     try {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: targetPhone }),
       });
       const data = await res.json();
 
@@ -36,14 +56,15 @@ export default function LoginPage() {
         return;
       }
 
-      if (data.devOtp) {
-        setDevHint(`Test Code: ${data.devOtp}`);
-        setOtp(data.devOtp); // Auto-fill in development for convenience
-      } else {
-        setDevHint(null);
-      }
-
+      setPhone(targetPhone);
       setStep("otp");
+      setOtpDigits(["", "", "", "", "", ""]);
+      setResendCountdown(30);
+      setSuccessMsg(data.message || `Verification code sent to +91 ${targetPhone}`);
+
+      setTimeout(() => {
+        digitInputRefs.current[0]?.focus();
+      }, 100);
     } catch {
       setError("Network error while connecting to authentication service.");
     } finally {
@@ -51,12 +72,60 @@ export default function LoginPage() {
     }
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (!otp || otp.length < 4) {
-      setError("Please enter the 6-digit verification code.");
+  function handleDigitChange(index: number, val: string) {
+    const sanitized = val.replace(/\D/g, "");
+    if (!sanitized) {
+      const next = [...otpDigits];
+      next[index] = "";
+      setOtpDigits(next);
       return;
     }
+
+    const next = [...otpDigits];
+    next[index] = sanitized.slice(-1);
+    setOtpDigits(next);
+
+    if (index < 5 && sanitized) {
+      digitInputRefs.current[index + 1]?.focus();
+    }
+
+    const fullOtp = next.join("");
+    if (fullOtp.length === 6 && !next.includes("")) {
+      handleVerifyOtp(fullOtp);
+    }
+  }
+
+  function handleKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
+      digitInputRefs.current[index - 1]?.focus();
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pasted) return;
+
+    const next = ["", "", "", "", "", ""];
+    for (let i = 0; i < pasted.length; i++) {
+      next[i] = pasted[i];
+    }
+    setOtpDigits(next);
+
+    if (pasted.length === 6) {
+      handleVerifyOtp(pasted);
+    } else {
+      digitInputRefs.current[Math.min(5, pasted.length)]?.focus();
+    }
+  }
+
+  async function handleVerifyOtp(explicitCode?: string) {
+    const code = explicitCode || otpDigits.join("");
+    if (code.length !== 6) {
+      setError("Please enter the complete 6-digit OTP code.");
+      return;
+    }
+
     setError("");
     setLoading(true);
 
@@ -64,7 +133,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, otp }),
+        body: JSON.stringify({ phone, otp: code }),
       });
       const data = await res.json();
 
@@ -74,91 +143,213 @@ export default function LoginPage() {
         return;
       }
 
-      // Successful verification
       router.push("/");
       router.refresh();
     } catch {
-      setError("Failed to verify code. Please try again.");
+      setError("Network error during verification.");
       setLoading(false);
     }
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-panel" aria-labelledby="login-title">
-        <Link className="brand" href="/">
+    <main className="min-h-screen bg-[var(--bg-canvas)] flex flex-col justify-between p-4 sm:p-6 transition-colors">
+      {/* Top Header Row */}
+      <header className="flex justify-between items-center w-full max-w-5xl mx-auto py-2">
+        <Link className="brand mb-0" href="/">
           <span className="brand-mark">✳</span>
-          <span>agriprofit</span>
+          <span className="tracking-tight">agriprofit</span>
         </Link>
-        <p className="eyebrow">FARMER AUTHENTICATION</p>
-        <h1 id="login-title">Sign in to your farm workspace</h1>
-        <p className="subhead">
-          {step === "phone"
-            ? "Enter your registered mobile number to receive a one-time verification code."
-            : `Enter the 6-digit verification code sent to +91 ${phone}`}
-        </p>
+        <ThemeToggle />
+      </header>
 
-        {error && <div className="p-2.5 mb-3 text-xs rounded bg-rose-50 text-rose-700 border border-rose-200">{error}</div>}
-        {devHint && <div className="p-2.5 mb-3 text-xs rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">{devHint}</div>}
+      {/* Main Authentication Card */}
+      <div className="w-full max-w-md mx-auto my-auto py-8">
+        <div className="agri-card p-6 sm:p-8 space-y-6 shadow-elevated">
+          {/* Card Title */}
+          <div className="text-center space-y-1.5">
+            <span className="agri-badge agri-badge-emerald">
+              AI Agricultural Decision Support
+            </span>
+            <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+              {step === "phone" ? "Farmer Workspace Login" : "Verify Phone OTP"}
+            </h1>
+            <p className="text-xs text-[var(--text-secondary)]">
+              {step === "phone"
+                ? "Enter your mobile number to receive a one-time SMS verification code."
+                : `Enter the 6-digit code sent via SMS to +91 ${phone}`}
+            </p>
+          </div>
 
-        {step === "phone" ? (
-          <form onSubmit={handleSendOtp} className="auth-form">
-            <label htmlFor="phone">Mobile Number</label>
-            <div className="flex gap-2">
-              <span className="p-2.5 bg-gray-100 border rounded text-xs text-gray-600 flex items-center font-medium">+91</span>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                inputMode="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                placeholder="e.g. 9876543210"
-                className="flex-1 p-2.5 border rounded text-xs"
-                required
-              />
+          {/* Feedback Messages */}
+          {error && (
+            <div className="p-3.5 rounded-xl text-xs font-bold agri-badge-rose border">
+              {error}
             </div>
-            <button className="primary-button full mt-3" type="submit" disabled={loading}>
-              {loading ? "Sending OTP..." : "Send Verification OTP"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="auth-form">
-            <label htmlFor="otp">Enter 6-Digit OTP Code</label>
-            <input
-              id="otp"
-              name="otp"
-              type="text"
-              inputMode="numeric"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="123456"
-              className="p-2.5 border rounded text-xs tracking-widest text-center text-lg font-bold"
-              required
-            />
-            <button className="primary-button full mt-3" type="submit" disabled={loading}>
-              {loading ? "Verifying..." : "Verify & Enter Workspace"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStep("phone");
-                setError("");
-                setDevHint(null);
-              }}
-              className="text-xs text-gray-500 hover:text-emerald-700 text-center block mt-3 font-medium"
-            >
-              ← Change phone number
-            </button>
-          </form>
-        )}
+          )}
 
-        <div className="mt-4 pt-3 border-t text-center">
-          <p className="text-[11px] text-gray-500">
-            Development Mode: In-memory mock authentication active.
-          </p>
+          {successMsg && (
+            <div className="p-3.5 rounded-xl text-xs font-bold agri-badge-emerald border">
+              {successMsg}
+            </div>
+          )}
+
+          {/* STEP 1: Phone Entry */}
+          {step === "phone" ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendOtp();
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="phone-input"
+                  className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']"
+                >
+                  Mobile Number:
+                </label>
+                <div className="flex gap-2">
+                  <span className="inline-flex items-center px-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] text-xs font-bold text-[var(--text-primary)]">
+                    🇮🇳 +91
+                  </span>
+                  <input
+                    id="phone-input"
+                    type="tel"
+                    inputMode="numeric"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="98765 43210"
+                    className="agri-input flex-1 font-bold text-sm tracking-wider"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || phone.length !== 10}
+                className="agri-btn-primary w-full py-3.5 text-sm"
+              >
+                {loading ? "Sending SMS OTP..." : "Send OTP via SMS →"}
+              </button>
+
+              {/* Quick Demo Profiles */}
+              <div className="pt-4 border-t border-[var(--border-subtle)] space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] text-center font-['Space_Grotesk']">
+                  ⚡ Quick Demo Evaluation Profiles (SIH Judges)
+                </p>
+                <div className="space-y-2">
+                  {DEMO_FARMERS.map((farmer) => (
+                    <button
+                      key={farmer.phone}
+                      type="button"
+                      onClick={() => {
+                        setPhone(farmer.phone);
+                        handleSendOtp(farmer.phone);
+                      }}
+                      className="w-full p-2.5 rounded-xl bg-[var(--bg-surface-subtle)] hover:bg-[var(--bg-surface-accent)] border border-[var(--border-subtle)] hover:border-[var(--border-accent)] text-left transition-all flex items-center justify-between group cursor-pointer"
+                    >
+                      <div>
+                        <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--color-primary)] font-['Space_Grotesk']">
+                          {farmer.name}
+                        </div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          {farmer.state} · {farmer.crop}
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono text-[var(--color-primary)] font-bold">
+                        +91 {farmer.phone}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </form>
+          ) : (
+            /* STEP 2: 6-Digit OTP Matrix */
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[var(--text-secondary)] font-['Space_Grotesk']">
+                    Enter 6-Digit OTP:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("phone");
+                      setError("");
+                      setSuccessMsg("");
+                    }}
+                    className="text-xs text-[var(--color-primary)] hover:underline font-bold cursor-pointer"
+                  >
+                    Change Number
+                  </button>
+                </div>
+
+                {/* 6 Individual Digit Boxes */}
+                <div className="grid grid-cols-6 gap-2" onPaste={handlePaste}>
+                  {otpDigits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => {
+                        digitInputRefs.current[idx] = el;
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleDigitChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                      className="agri-input h-12 text-center text-xl font-bold p-0"
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleVerifyOtp()}
+                disabled={loading || otpDigits.includes("")}
+                className="agri-btn-primary w-full py-3.5 text-sm"
+              >
+                {loading ? "Verifying Code..." : "Verify & Enter Farm Workspace →"}
+              </button>
+
+              {/* Resend Countdown */}
+              <div className="text-center pt-1">
+                {resendCountdown > 0 ? (
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Resend SMS in <span className="font-bold text-[var(--color-primary)]">{resendCountdown}s</span>
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp()}
+                    disabled={loading}
+                    className="text-xs text-[var(--color-primary)] font-bold cursor-pointer underline"
+                  >
+                    Didn&apos;t receive SMS? Resend OTP
+                  </button>
+                )}
+              </div>
+
+              {/* Dev Info */}
+              <div className="p-3 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-subtle)] text-center">
+                <p className="text-xs text-[var(--text-muted)]">
+                  🔒 Live SMS Gateway Active · Master Demo Key: <code className="text-[var(--color-primary)] font-bold">123456</code>
+                </p>
+              </div>
+            </div>
+          )}
         </div>
-      </section>
+      </div>
+
+      {/* Footer Info */}
+      <footer className="text-center text-xs text-[var(--text-muted)] py-3">
+        <p>AgriProfit Decision Support Platform · Smart India Hackathon</p>
+      </footer>
     </main>
   );
 }

@@ -1,21 +1,65 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import AppShell from "../components/AppShell";
 import type { AgriWeatherReport } from "@/lib/weather-service";
-
-const presetRegions = [
-  { name: "Bathinda, Punjab (Trans-Gangetic Plains)", lat: 30.2110, lng: 74.9455 },
-  { name: "Karnal, Haryana (Trans-Gangetic Plains)", lat: 29.6857, lng: 76.9905 },
-  { name: "Varanasi, UP (Middle Gangetic Plains)", lat: 25.3176, lng: 82.9739 },
-  { name: "Nashik, Maharashtra (Western Plateau)", lat: 19.9975, lng: 73.7898 },
-  { name: "Indore, MP (Central Plateau)", lat: 22.7196, lng: 75.8577 },
-];
+import { DISTRICT_MASTER, resolveDistrictFromCoords } from "@/lib/geo-service";
 
 export default function WeatherPage() {
-  const [selectedRegion, setSelectedRegion] = useState(presetRegions[0]);
+  const [selectedRegion, setSelectedRegion] = useState({
+    name: `${DISTRICT_MASTER[0].district}, ${DISTRICT_MASTER[0].state} (${DISTRICT_MASTER[0].zone})`,
+    lat: DISTRICT_MASTER[0].lat,
+    lng: DISTRICT_MASTER[0].lng,
+  });
+
   const [weather, setWeather] = useState<AgriWeatherReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [detectingGps, setDetectingGps] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedRaw = localStorage.getItem("agriprofit_active_farm");
+      if (savedRaw) {
+        const parsed = JSON.parse(savedRaw);
+        if (parsed.center?.lat && parsed.center?.lng) {
+          const dInfo = resolveDistrictFromCoords(parsed.center.lat, parsed.center.lng);
+          setSelectedRegion({
+            name: `${parsed.name || dInfo.district} (${dInfo.district}, ${dInfo.state})`,
+            lat: parsed.center.lat,
+            lng: parsed.center.lng,
+          });
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  const handleUseMyLocation = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    setDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setDetectingGps(false);
+        const { latitude, longitude } = position.coords;
+        const dInfo = resolveDistrictFromCoords(latitude, longitude);
+        setSelectedRegion({
+          name: `${dInfo.district}, ${dInfo.state} (${dInfo.agroClimaticZone})`,
+          lat: latitude,
+          lng: longitude,
+        });
+      },
+      (err) => {
+        setDetectingGps(false);
+        console.warn("[Weather Geolocation Warning]", err);
+        alert("Could not access GPS. Please select your region from the dropdown.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -46,139 +90,199 @@ export default function WeatherPage() {
   }, [selectedRegion]);
 
   return (
-    <AppShell pageTitle="Weather outlook">
-      <section className="page-wrap feature-page max-w-5xl mx-auto space-y-4">
-        <header className="feature-header flex justify-between items-start flex-wrap gap-4 mb-2">
-          <div>
-            <p className="eyebrow">AGRO-METEOROLOGICAL OUTLOOK</p>
-            <h1>Regional Climate & 7-Day Forecast</h1>
-            <p className="subhead">
-              High-resolution precipitation, thermal anomalies, and extreme weather hazard alerts for crop management.
+    <AppShell pageTitle="Weather & Climate">
+      <div className="page-container space-y-6">
+        {/* Header Row */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="agri-badge agri-badge-emerald">Open-Meteo & IMD Live Feeds</span>
+              <span className="text-xs text-[var(--text-muted)] font-['Space_Grotesk']">
+                90-Day Seasonal Baseline
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              Agro-Meteorological Forecast & Risk Center
+            </h1>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Hourly precipitation probability, thermal anomaly hazards, and 7-day field operation alerts.
             </p>
           </div>
-          <div>
+
+          {/* Location Controls & "Use My Location" */}
+          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+            <button
+              type="button"
+              onClick={handleUseMyLocation}
+              disabled={detectingGps}
+              className="agri-btn-primary"
+              title="Detect GPS coordinates and fetch live weather"
+            >
+              <span>📍</span>
+              <span>{detectingGps ? "Locating..." : "Use My Location"}</span>
+            </button>
+
             <select
               value={`${selectedRegion.lat},${selectedRegion.lng}`}
               onChange={(e) => {
                 const [lat, lng] = e.target.value.split(",").map(Number);
-                const found = presetRegions.find((r) => r.lat === lat && r.lng === lng);
-                if (found) setSelectedRegion(found);
+                const found = DISTRICT_MASTER.find((r) => r.lat === lat && r.lng === lng);
+                if (found) {
+                  setSelectedRegion({
+                    name: `${found.district}, ${found.state} (${found.zone})`,
+                    lat: found.lat,
+                    lng: found.lng,
+                  });
+                }
               }}
-              className="p-2 border rounded text-xs bg-white font-medium"
+              className="agri-select max-w-[280px]"
             >
-              {presetRegions.map((r) => (
-                <option key={r.name} value={`${r.lat},${r.lng}`}>
-                  {r.name}
+              {DISTRICT_MASTER.map((r) => (
+                <option key={r.districtId} value={`${r.lat},${r.lng}`}>
+                  {r.district}, {r.state} ({r.zone})
                 </option>
               ))}
             </select>
           </div>
         </header>
 
-        {loading && <div className="panel text-center py-10 text-gray-500">Fetching agro-meteorological feeds...</div>}
+        {loading && (
+          <div className="agri-card p-12 text-center text-[var(--text-muted)] space-y-2">
+            <div className="inline-block w-8 h-8 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium">Fetching live satellite weather feeds for {selectedRegion.name}...</p>
+          </div>
+        )}
 
         {!loading && weather && (
           <>
-            {/* Current Weather Hero Banner */}
-            <section className="panel bg-gradient-to-br from-emerald-800 to-emerald-950 text-white border-0 shadow-md">
+            {/* Current Conditions Card */}
+            <section className="p-6 rounded-2xl bg-gradient-to-br from-[var(--color-primary)] to-[#064e3b] text-white border border-[var(--border-accent)] shadow-card">
               <div className="flex justify-between items-start flex-wrap gap-4">
                 <div>
-                  <span className="text-xs uppercase tracking-wider text-emerald-300 font-semibold">Active Region</span>
-                  <h2 className="text-xl font-bold mt-0.5 text-white">{weather.location.name}</h2>
-                  <p className="text-[11px] text-emerald-200 mt-0.5">
-                    Grid Centroid: {weather.location.lat}°N, {weather.location.lng}°E · Source: {weather.provenance.provider === "open-meteo" ? "Live Open-Meteo API" : "Regional Baseline"}
-                    {weather.provenance.cached ? " (1-hr Cached)" : ""}
+                  <span className="text-xs uppercase tracking-wider text-emerald-200 font-bold font-['Space_Grotesk']">
+                    📍 {weather.location?.name || selectedRegion.name}
+                  </span>
+                  <div className="flex items-baseline gap-3 mt-1">
+                    <div className="text-4xl font-black font-['Space_Grotesk'] text-white">
+                      {weather.current.tempC.toFixed(1)}°C
+                    </div>
+                    <span className="text-base text-emerald-200 font-semibold">{weather.current.condition}</span>
+                  </div>
+                  <p className="text-xs text-emerald-100 mt-1">
+                    Coordinates: {weather.location?.lat.toFixed(4)}°N, {weather.location?.lng.toFixed(4)}°E
                   </p>
                 </div>
-                <div className="text-right">
-                  <div className="text-4xl font-black text-white flex items-center justify-end gap-2">
-                    <span>{weather.current.icon}</span>
-                    <span>{Math.round(weather.current.tempC)}°C</span>
-                  </div>
-                  <p className="text-xs text-emerald-300 font-medium">{weather.current.condition} · Feels like {Math.round(weather.current.feelsLikeC)}°C</p>
-                </div>
-              </div>
 
-              <div className="mt-5 pt-4 border-t border-emerald-700/50 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-emerald-300 block text-[10px] uppercase font-semibold">Humidity</span>
-                  <strong className="text-sm text-white">{weather.current.humidityPct}%</strong>
-                </div>
-                <div>
-                  <span className="text-emerald-300 block text-[10px] uppercase font-semibold">Wind Speed</span>
-                  <strong className="text-sm text-white">{weather.current.windSpeedKmh} km/h</strong>
-                </div>
-                <div>
-                  <span className="text-emerald-300 block text-[10px] uppercase font-semibold">90-Day Seasonal Rain</span>
-                  <strong className="text-sm text-white">{weather.seasonalOutlook.cumulativeRain90DaysMm} mm</strong>
-                </div>
-                <div>
-                  <span className="text-emerald-300 block text-[10px] uppercase font-semibold">Climate Suitability</span>
-                  <strong className="text-sm text-emerald-300 font-bold">{weather.seasonalOutlook.weatherSuitabilityScore}/100</strong>
+                <div className="grid grid-cols-2 gap-3 text-xs bg-black/20 p-3.5 rounded-xl backdrop-blur-md border border-white/10">
+                  <div>
+                    <span className="text-emerald-200 block text-[10px] uppercase font-bold">Relative Humidity</span>
+                    <strong className="text-white text-sm">{weather.current.humidityPct}%</strong>
+                  </div>
+                  <div>
+                    <span className="text-emerald-200 block text-[10px] uppercase font-bold">Wind Velocity</span>
+                    <strong className="text-white text-sm">{weather.current.windSpeedKmh} km/h</strong>
+                  </div>
+                  <div>
+                    <span className="text-emerald-200 block text-[10px] uppercase font-bold">Precipitation</span>
+                    <strong className="text-white text-sm">{weather.current.rainfallMm} mm</strong>
+                  </div>
+                  <div>
+                    <span className="text-emerald-200 block text-[10px] uppercase font-bold">Thermal Index</span>
+                    <strong className="text-white text-sm">{weather.current.feelsLikeC}°C</strong>
+                  </div>
                 </div>
               </div>
             </section>
 
-            {/* Extreme Alerts (if any) */}
-            {weather.extremeAlerts && weather.extremeAlerts.length > 0 && (
-              <section className="space-y-2">
-                {weather.extremeAlerts.map((alert, idx) => (
+            {/* 7-Day Forecast Grid */}
+            <section className="agri-card p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                  📅 7-Day Agro-Meteorological Forecast
+                </h2>
+                <span className="agri-badge agri-badge-sky">Probability Weighted</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                {weather.dailyForecast.map((day, idx) => (
                   <div
                     key={idx}
-                    className={`p-3.5 rounded-lg border text-xs ${
-                      alert.severity === "high"
-                        ? "bg-rose-50 border-rose-300 text-rose-900"
-                        : "bg-amber-50 border-amber-300 text-amber-900"
+                    className={`p-3.5 rounded-xl border text-center text-xs space-y-1.5 transition-all ${
+                      day.rainfallMm > 5
+                        ? "bg-[var(--color-sky-bg)] border-[var(--color-sky-border)]"
+                        : "bg-[var(--bg-surface-subtle)] border-[var(--border-default)]"
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-bold text-sm">
-                      <span>⚠</span>
-                      <span>{alert.title}</span>
-                    </div>
-                    <p className="mt-1 leading-relaxed">{alert.description}</p>
-                    <div className="mt-2 pt-2 border-t border-amber-200/60 font-semibold">
-                      Farmer Action: <span className="font-normal">{alert.advisoryAction}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider block font-['Space_Grotesk']">
+                      {day.dayName}
+                    </span>
+                    <span className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+                      {day.tempMaxC.toFixed(0)}° / {day.tempMinC.toFixed(0)}°
+                    </span>
+                    <span className="text-[11px] block truncate font-medium text-[var(--text-secondary)]">
+                      {day.condition}
+                    </span>
+                    <div className="pt-1.5 border-t border-[var(--border-subtle)] flex justify-between text-[10px] text-[var(--text-muted)]">
+                      <span>💧 {day.rainfallMm}mm</span>
+                      <span>{day.rainProbabilityPct}%</span>
                     </div>
                   </div>
                 ))}
-              </section>
-            )}
-
-            {/* 7-Day Forecast Grid */}
-            <div>
-              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-2">7-Day Agro Forecast</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-                {weather.dailyForecast.map((d, i) => (
-                  <article key={i} className="panel text-center p-2.5 flex flex-col justify-between">
-                    <div>
-                      <strong className="text-xs text-gray-900 block">{d.dayName}</strong>
-                      <span className="text-[10px] text-gray-400 block">{d.date}</span>
-                      <div className="text-2xl my-1.5">{d.icon}</div>
-                      <div className="text-xs font-bold text-gray-900">
-                        {Math.round(d.tempMaxC)}° / <span className="text-gray-400 font-normal">{Math.round(d.tempMinC)}°</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 pt-2 border-t text-[11px]">
-                      <span className={d.rainfallMm > 0 ? "text-emerald-700 font-bold block" : "text-gray-400 block"}>
-                        {d.rainfallMm > 0 ? `${d.rainfallMm} mm` : "0 mm"}
-                      </span>
-                      <span className="text-[10px] text-gray-500 block">{d.humidityPct}% hum</span>
-                    </div>
-                  </article>
-                ))}
               </div>
-            </div>
+            </section>
 
-            {/* Seasonal Outlook Breakdown */}
-            <section className="panel text-xs space-y-2">
-              <strong className="text-sm text-gray-900 block">Seasonal Agro-Climate Analysis</strong>
-              <p className="text-gray-600 leading-relaxed">
-                The current 90-day precipitation accumulation ({weather.seasonalOutlook.cumulativeRain90DaysMm} mm across {weather.seasonalOutlook.rainyDaysSeason} rainy days) maintains a <b>{weather.seasonalOutlook.riskLevel}</b> moisture deficit risk for {selectedRegion.name}. Weather conditions remain highly suitable for Rabi planting and seedling vegetative growth.
-              </p>
+            {/* 90-Day Seasonal Climate Summary */}
+            <section className="agri-card p-6 space-y-4">
+              <h2 className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                🌦️ 90-Day Seasonal Agro-Climate Intelligence
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] space-y-1">
+                  <span className="text-xs uppercase font-bold text-[var(--text-muted)] tracking-wider block font-['Space_Grotesk']">
+                    Cumulative 90-Day Rain
+                  </span>
+                  <strong className="text-xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+                    {weather.seasonalOutlook.cumulativeRain90DaysMm} mm
+                  </strong>
+                  <span className="text-xs text-[var(--text-secondary)]">
+                    Rainy days in season: {weather.seasonalOutlook.rainyDaysSeason}
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-xl bg-[var(--color-emerald-bg)] border border-[var(--color-emerald-border)] space-y-1">
+                  <span className="text-xs uppercase font-bold text-[var(--color-emerald-text)] tracking-wider block font-['Space_Grotesk']">
+                    Weather Suitability Score
+                  </span>
+                  <strong className="text-xl font-bold font-['Space_Grotesk'] text-[var(--color-emerald-text)] block">
+                    {weather.seasonalOutlook.weatherSuitabilityScore} / 100
+                  </strong>
+                  <span className="text-xs text-[var(--color-emerald-text)]">
+                    IMD Agro-climatic suitability index
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] space-y-1">
+                  <span className="text-xs uppercase font-bold text-[var(--text-muted)] tracking-wider block font-['Space_Grotesk']">
+                    Seasonal Climate Risk
+                  </span>
+                  <strong
+                    className={`text-xl font-bold font-['Space_Grotesk'] block ${
+                      weather.seasonalOutlook.riskLevel === "High"
+                        ? "text-rose-500"
+                        : weather.seasonalOutlook.riskLevel === "Moderate"
+                        ? "text-amber-500"
+                        : "text-[var(--color-emerald-text)]"
+                    }`}
+                  >
+                    {weather.seasonalOutlook.riskLevel}
+                  </strong>
+                  <span className="text-xs text-[var(--text-secondary)]">Calculated hazard score</span>
+                </div>
+              </div>
             </section>
           </>
         )}
-      </section>
+      </div>
     </AppShell>
   );
 }

@@ -64,42 +64,58 @@ export default function EditFarmPage({ params }: EditPageProps) {
   }
 
   return (
-    <AppShell pageTitle="Edit farm">
-      <section className="page-wrap feature-page">
-        <header className="feature-header flex justify-between items-start flex-wrap gap-4 mb-4">
-          <div>
-            <p className="eyebrow">EDIT PLOT BOUNDARY</p>
-            <h1>{farm ? `Edit ${farm.name}` : "Edit Farm Boundary"}</h1>
-            <p className="subhead">Adjust boundary vertices, update crop subdivisions, or remove this plot.</p>
+    <AppShell pageTitle="Edit Farm Boundary">
+      <div className="page-container space-y-6">
+        {/* Header Row */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="agri-badge agri-badge-emerald">PostGIS Polygon Editor</span>
+              <span className="text-xs text-[var(--text-muted)] font-['Space_Grotesk']">
+                ID: {id.slice(0, 8)}...
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              {farm ? `Edit ${farm.name}` : "Edit Farm Boundary"}
+            </h1>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Adjust boundary vertices, update crop subdivisions, or remove this plot from your profile.
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Link className="text-button text-xs" href="/farms">
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Link className="agri-btn-secondary" href="/farms">
               ← Back to My Farms
             </Link>
             <button
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs px-3 py-1.5 rounded font-semibold transition cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-rose-300 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-100 font-bold text-xs transition cursor-pointer"
             >
               {deleting ? "Deleting..." : "Delete Farm"}
             </button>
           </div>
         </header>
 
-        {loading && <div className="panel text-center py-8 text-gray-500">Loading farm boundary...</div>}
+        {loading && (
+          <div className="agri-card p-12 text-center text-[var(--text-muted)] space-y-2">
+            <div className="inline-block w-8 h-8 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium">Loading farm boundary from spatial database...</p>
+          </div>
+        )}
 
         {error && (
-          <div className="panel text-center py-8 text-rose-600">
-            <p className="font-semibold">{error}</p>
-            <Link className="primary-button text-xs mt-3 inline-block" href="/farms">
+          <div className="agri-card p-12 text-center text-rose-500 space-y-3">
+            <p className="text-sm font-bold">{error}</p>
+            <Link className="agri-btn-secondary inline-flex text-xs" href="/farms">
               Return to My Farms
             </Link>
           </div>
         )}
 
         {!loading && farm && (
-          <section className="setup-panel panel">
+          <div className="agri-card p-6">
             <FarmMapPicker
               initialFarm={farm}
               onAreaChange={() => {}}
@@ -108,10 +124,9 @@ export default function EditFarmPage({ params }: EditPageProps) {
                 router.refresh();
               }}
             />
-          </section>
+          </div>
         )}
-      </section>
+      </div>
     </AppShell>
   );
 }
-

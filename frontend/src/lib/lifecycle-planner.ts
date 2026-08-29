@@ -196,8 +196,9 @@ function formatDate(d: Date): string {
 export function generateCropLifecyclePlan(
   cropName: string,
   sowDateString: string,
-  regionName = "Bathinda, Punjab (Trans-Gangetic Plains)"
+  regionName = "Agro-Climatic Zone (Auto-Resolved)"
 ): CropLifecyclePlan {
+
   const sowDate = new Date(sowDateString);
   const now = new Date();
 

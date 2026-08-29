@@ -51,109 +51,139 @@ export default function FarmsPage() {
   }
 
   return (
-    <AppShell pageTitle="My farms">
-      <section className="page-wrap feature-page">
-        <header className="feature-header flex justify-between items-start flex-wrap gap-4 mb-4">
-          <div>
-            <p className="eyebrow">SAVED PLOTS</p>
-            <h1>My Farm Boundaries</h1>
-            <p className="subhead">Manage georeferenced land plots, boundaries, sections, and water/soil preferences.</p>
+    <AppShell pageTitle="My Farms">
+      <div className="page-container space-y-6">
+        {/* Header Title Row */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="agri-badge agri-badge-emerald">PostGIS Georeferenced</span>
+              <span className="text-xs text-[var(--text-muted)] font-['Space_Grotesk']">
+                {farms.length} Plot(s) Mapped
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              Registered Farm Parcels
+            </h1>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Manage field boundaries, compute geodesic acreage, and trigger tailored crop strategies.
+            </p>
           </div>
-          <Link className="primary-button" href="/farms/new">
-            + Add New Farm
+
+          <Link className="agri-btn-primary shrink-0" href="/farms/new">
+            <span>+</span>
+            <span>Map New Field Boundary</span>
           </Link>
         </header>
 
-        {loading && <div className="panel text-center py-8 text-gray-500">Loading your farms...</div>}
-
-        {!loading && farms.length === 0 && (
-          <section className="panel text-center py-10">
-            <div className="empty-icon text-3xl text-emerald-600 mb-2">▧</div>
-            <h2 className="text-lg font-bold text-gray-900">No farms registered yet</h2>
-            <p className="text-xs text-gray-500 max-w-md mx-auto mt-1 mb-4">
-              Map your field boundary on Google Maps to generate tailored multi-crop recommendations and 90-day climate forecasts.
-            </p>
-            <Link className="primary-button inline-block" href="/farms/new">
-              Open Farm Boundary Tool
-            </Link>
-          </section>
+        {/* Loading State */}
+        {loading && (
+          <div className="agri-card p-12 text-center text-[var(--text-muted)] space-y-2">
+            <div className="inline-block w-8 h-8 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium">Loading your field boundaries from PostGIS...</p>
+          </div>
         )}
 
+        {/* Empty State */}
+        {!loading && farms.length === 0 && (
+          <div className="agri-card p-12 text-center max-w-xl mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--color-primary-light)] text-[var(--color-primary)] text-3xl flex items-center justify-center mx-auto border border-[var(--border-accent)]">
+              🗺️
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                No Farm Boundaries Mapped Yet
+              </h2>
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                Use your GPS or search your district on our satellite map to draw your field boundary. Your exact polygon area will instantly drive ML yield predictions and 4-part portfolio optimization.
+              </p>
+            </div>
+            <Link className="agri-btn-primary inline-flex" href="/farms/new">
+              <span>📍</span>
+              <span>Open Farm Boundary Tool</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Farm Cards Grid */}
         {!loading && farms.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {farms.map((farm) => {
               const hectares = (farm.areaAcres / 2.47105).toFixed(2);
+              const isDeleting = deletingId === farm.id;
+
               return (
-                <article key={farm.id} className="panel flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start">
+                <article
+                  key={farm.id}
+                  className="agri-card p-6 flex flex-col justify-between hover:border-[var(--border-strong)] transition-all space-y-5"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h2 className="text-base font-bold text-gray-900">{farm.name}</h2>
-                        <p className="text-xs text-gray-500">
+                        <h2 className="text-lg font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                          {farm.name}
+                        </h2>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
                           Centroid: {farm.center.lat.toFixed(4)}°N, {farm.center.lng.toFixed(4)}°E
                         </p>
                       </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 block">
-                          {farm.areaAcres.toFixed(2)} acres
+
+                      <div className="text-right shrink-0">
+                        <span className="text-sm font-black px-3 py-1 rounded-lg bg-[var(--color-emerald-bg)] text-[var(--color-emerald-text)] border border-[var(--color-emerald-border)] block">
+                          {farm.areaAcres.toFixed(2)} Acres
                         </span>
-                        <span className="text-[10px] text-gray-500 block mt-0.5">({hectares} ha)</span>
+                        <span className="text-[11px] text-[var(--text-muted)] block mt-0.5">
+                          ({hectares} Hectares)
+                        </span>
                       </div>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-gray-400 block text-[10px] uppercase">Water Source</span>
-                        <strong className="text-gray-800 font-semibold">{farm.preferences?.water || "Medium"}</strong>
-                      </div>
-                      <div>
-                        <span className="text-gray-400 block text-[10px] uppercase">Risk Appetite</span>
-                        <strong className="text-gray-800 font-semibold">{farm.preferences?.risk || "Balanced"}</strong>
-                      </div>
+                    {/* Preferences / Tags */}
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-[var(--border-subtle)]">
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                        💧 Water: {farm.preferences?.water || "Medium (Tubewell)"}
+                      </span>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                        🛡️ Risk: {farm.preferences?.risk || "Balanced Growth"}
+                      </span>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+                        🌱 Active Season: Rabi
+                      </span>
                     </div>
-
-                    {farm.sections && farm.sections.length > 0 && (
-                      <div className="mt-3 pt-3 border-t">
-                        <span className="text-[10px] uppercase text-gray-400 block font-semibold mb-1">Crop Sections</span>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {farm.sections.map((sec, idx) => (
-                            <span key={idx} className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                              {sec.crop}: {sec.area} ac ({(sec.area / 2.47105).toFixed(2)} ha)
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  <div className="mt-4 pt-3 border-t flex gap-2 items-center flex-wrap">
-                    <Link
-                      className="primary-button text-xs py-1.5 px-3 flex-1 text-center"
-                      href="/recommendations"
-                    >
-                      Generate Plan
-                    </Link>
-                    <Link
-                      className="text-button text-xs py-1.5 px-3"
-                      href={`/farms/${farm.id}/edit`}
-                    >
-                      Edit Boundary
-                    </Link>
+                  {/* Actions Row */}
+                  <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
                     <button
                       type="button"
-                      disabled={deletingId === farm.id}
                       onClick={() => handleDeleteFarm(farm.id, farm.name)}
-                      className="text-xs text-rose-600 hover:text-rose-800 py-1.5 px-2 hover:bg-rose-50 rounded transition font-medium cursor-pointer"
+                      disabled={isDeleting}
+                      className="text-xs text-rose-500 hover:text-rose-700 font-semibold p-1.5 transition-colors cursor-pointer"
                     >
-                      {deletingId === farm.id ? "Deleting..." : "Delete"}
+                      {isDeleting ? "Deleting..." : "Delete Plot"}
                     </button>
+
+                    <div className="flex items-center gap-2">
+                      <Link
+                        className="agri-btn-secondary text-xs px-3 py-1.5"
+                        href={`/farms/${farm.id}/edit`}
+                      >
+                        Edit Boundary
+                      </Link>
+                      <Link
+                        className="agri-btn-primary text-xs px-3 py-1.5"
+                        href={`/recommendations?farmId=${farm.id}&acres=${farm.areaAcres}&lat=${farm.center.lat}&lng=${farm.center.lng}&name=${encodeURIComponent(farm.name)}`}
+                      >
+                        Generate Plan →
+                      </Link>
+                    </div>
                   </div>
                 </article>
               );
             })}
           </div>
         )}
-      </section>
+      </div>
     </AppShell>
   );
 }

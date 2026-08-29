@@ -19,7 +19,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@agriprofit/shared": ["../packages/shared/src/index.ts"],
+      "@agriprofit/shared/types": ["../packages/shared/types/index.ts"],
+      "@agriprofit/api-client": ["../packages/api-client/src/index.ts"]
     }
   },
   "include": [
