@@ -64,43 +64,49 @@ class YieldPredictionModel:
         import numpy as np
 
         artifact = self._artifact
-        encoders = artifact["encoders"]
+        encoders = artifact.get("encoders", {})
 
-        crop_classes = list(encoders["crop_name"].classes_)
+        crop_le = encoders.get("crop_name")
+        crop_classes = list(crop_le.classes_) if crop_le else []
         matched_crop = next(
             (c for c in crop_classes if c.lower() == crop_slug.lower().strip()),
-            crop_classes[0]
+            crop_classes[0] if crop_classes else crop_slug.title()
         )
 
         def encode_safe(le, val):
+            if not le:
+                return 0
             classes = list(le.classes_)
             if val in classes:
-                return le.transform([val])[0]
+                return int(le.transform([val])[0])
+            for c in classes:
+                if str(c).lower() == str(val).lower():
+                    return int(le.transform([c])[0])
             return 0
 
-        crop_enc = encode_safe(encoders["crop_name"], matched_crop)
-        state_enc = encode_safe(encoders["state"], state)
-        irrig_enc = encode_safe(encoders["irrigation_type"], irrigation_type)
+        crop_enc = encode_safe(encoders.get("crop_name"), matched_crop)
+        state_enc = encode_safe(encoders.get("state"), state)
+        irrig_enc = encode_safe(encoders.get("irrigation_type"), irrigation_type)
 
         feature_values = {
-            "crop_encoded": crop_enc,
-            "state_encoded": state_enc,
-            "irrigation_encoded": irrig_enc,
-            "rainfall_seasonal_mm": float(rainfall_mm),
-            "temp_mean_c": float(avg_temp_c),
+            "avg_temp_c": float(avg_temp_c),
+            "total_rainfall_mm": float(rainfall_mm),
             "soil_ph": float(soil_ph),
             "nitrogen_kg_per_ha": float(nitrogen_kg_per_ha),
+            "crop_name_enc": crop_enc,
+            "state_enc": state_enc,
+            "irrigation_type_enc": irrig_enc,
         }
 
-        cols = artifact["feature_columns"]
+        cols = artifact.get("feature_names", artifact.get("feature_columns", list(feature_values.keys())))
         X_vec = np.array([[feature_values.get(c, 0.0) for c in cols]])
 
         model = artifact["model"]
-        pred_q_ha = float(model.predict(X_vec)[0])
-        pred_q_ha = max(0.5, pred_q_ha)
+        pred_kg_ha = float(model.predict(X_vec)[0])
+        pred_kg_ha = max(50.0, pred_kg_ha)
 
-        q_per_acre = round(pred_q_ha / 2.47105, 2)
-        q_per_ha = round(pred_q_ha, 2)
+        q_per_ha = round(pred_kg_ha / 100.0, 2)
+        q_per_acre = round(q_per_ha / 2.47105, 2)
 
         ci_lower = round(max(0.1, q_per_acre * 0.88), 2)
         ci_upper = round(q_per_acre * 1.12, 2)
@@ -113,7 +119,6 @@ class YieldPredictionModel:
             "confidence_interval_q_per_acre": [ci_lower, ci_upper],
             "model_version": self._model_version,
             "is_ml_predicted": True,
-            "r2_score": artifact.get("r2_score", 0.94),
             "features_used": feature_values,
         }
 
@@ -140,4 +145,3 @@ class YieldPredictionModel:
 
 
 yield_model = YieldPredictionModel()
-

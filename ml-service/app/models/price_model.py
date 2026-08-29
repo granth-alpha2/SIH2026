@@ -82,62 +82,66 @@ class PriceForecaster:
         import numpy as np
 
         artifact = self._artifact
-        encoders = artifact["encoders"]
+        encoders = artifact.get("encoders", {})
 
-        crop_classes = list(encoders["crop_name"].classes_)
+        crop_le = encoders.get("crop_name")
+        crop_classes = list(crop_le.classes_) if crop_le else []
         matched_crop = next(
             (c for c in crop_classes if c.lower() == crop_slug.lower().strip()),
-            crop_classes[0]
+            crop_classes[0] if crop_classes else crop_slug.title()
         )
 
         def encode_safe(le, val):
+            if not le:
+                return 0
             classes = list(le.classes_)
             if val in classes:
-                return le.transform([val])[0]
+                return int(le.transform([val])[0])
+            for c in classes:
+                if str(c).lower() == str(val).lower():
+                    return int(le.transform([c])[0])
             return 0
 
-        crop_enc = encode_safe(encoders["crop_name"], matched_crop)
-        state_enc = encode_safe(encoders["state"], state)
+        crop_enc = encode_safe(encoders.get("crop_name"), matched_crop)
+        state_enc = encode_safe(encoders.get("state"), state)
 
         future_month = ((current_month - 1 + months_ahead) % 12) + 1
         month_sin = math.sin(2 * math.pi * future_month / 12)
         month_cos = math.cos(2 * math.pi * future_month / 12)
 
         p_change_1m = (base_price - lag2) / lag2 if lag2 > 0 else 0.0
-        p_change_2m = (base_price - lag3) / lag3 if lag3 > 0 else 0.0
 
         feature_values = {
-            "crop_encoded": crop_enc,
-            "state_encoded": state_enc,
-            "price_lag1": float(base_price),
-            "price_lag2": float(lag2),
-            "price_lag3": float(lag3),
-            "price_change_1m": float(p_change_1m),
-            "price_change_2m": float(p_change_2m),
-            "month_sin": float(month_sin),
-            "month_cos": float(month_cos),
+            "price_lag1_inr": float(base_price),
+            "price_lag2_inr": float(lag2),
+            "price_lag3_inr": float(lag3),
             "rainfall_anomaly_mm": float(rainfall_anomaly),
             "trade_demand_index": float(demand_index),
+            "month_sin": float(month_sin),
+            "month_cos": float(month_cos),
+            "price_momentum": float(p_change_1m),
+            "log_lag1": float(math.log(max(1.0, base_price))),
+            "log_lag2": float(math.log(max(1.0, lag2))),
+            "log_lag3": float(math.log(max(1.0, lag3))),
+            "crop_name_enc": crop_enc,
+            "state_enc": state_enc,
         }
 
-        cols = artifact["feature_columns"]
+        cols = artifact.get("feature_names", list(feature_values.keys()))
         X_vec = np.array([[feature_values.get(c, 0.0) for c in cols]])
 
-        scaler = artifact["scaler"]
-        X_scaled = scaler.transform(X_vec)
+        ridge_pred = float(artifact["ridge"].predict(X_vec)[0]) if "ridge" in artifact else float(base_price)
+        gbr_pred = float(artifact["gbr"].predict(X_vec)[0]) if "gbr" in artifact else float(base_price)
 
-        ridge_pred = artifact["ridge"].predict(X_scaled)[0]
-        gbr_pred = artifact["gbr"].predict(X_vec)[0]
-
-        w_ridge = artifact.get("weight_ridge", 0.4)
-        w_gbr = artifact.get("weight_gbr", 0.6)
+        w_ridge = artifact.get("ridge_weight", 0.5)
+        w_gbr = artifact.get("gbr_weight", 0.5)
         ensemble_pred = float(w_ridge * ridge_pred + w_gbr * gbr_pred)
 
         predicted_price = round(max(100.0, ensemble_pred), 2)
         change_pct = round(((predicted_price - base_price) / base_price) * 100, 2)
         trend = "bullish" if change_pct > 3.0 else "bearish" if change_pct < -3.0 else "neutral"
 
-        ci_pct = artifact.get("mape_test", 6.8) / 100
+        ci_pct = 0.05
         ci_lower = round(predicted_price * (1 - ci_pct), 2)
         ci_upper = round(predicted_price * (1 + ci_pct), 2)
 
@@ -153,7 +157,6 @@ class PriceForecaster:
             "confidence_interval": [ci_lower, ci_upper],
             "model_version": self._model_version,
             "is_ml_forecast": True,
-            "mape_error_pct": round(artifact.get("mape_test", 6.8), 2),
             "sub_model_preds": {
                 "ridge_pred": round(float(ridge_pred), 2),
                 "gbr_pred": round(float(gbr_pred), 2),
@@ -179,4 +182,3 @@ class PriceForecaster:
 
 
 price_forecaster = PriceForecaster()
-

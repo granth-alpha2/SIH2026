@@ -31,5 +31,4 @@ jobs:
 
       - name: Run ML Unit Tests
         run: |
-          pytest ml-service/tests/
-
+          PYTHONPATH=.:ml-service pytest ml-service/tests/

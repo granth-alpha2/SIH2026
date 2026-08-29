@@ -2,9 +2,20 @@
 Unit tests for AgriProfit ML Models
 """
 
-import pytest
-from ..app.models.yield_model import yield_model
-from ..app.models.price_model import price_forecaster
+import sys
+from pathlib import Path
+
+# Ensure ml-service root is in sys.path
+_ml_service_dir = Path(__file__).resolve().parent.parent
+if str(_ml_service_dir) not in sys.path:
+    sys.path.insert(0, str(_ml_service_dir))
+
+try:
+    from app.models.yield_model import yield_model
+    from app.models.price_model import price_forecaster
+except ImportError:
+    from ml_service.app.models.yield_model import yield_model
+    from ml_service.app.models.price_model import price_forecaster
 
 
 def test_yield_prediction_basic():
@@ -34,3 +45,8 @@ def test_price_forecast_basic():
     assert res["forecast_horizon_months"] == 3
     assert res["price_trend"] in ["bullish", "bearish", "neutral"]
 
+
+if __name__ == "__main__":
+    test_yield_prediction_basic()
+    test_price_forecast_basic()
+    print("All ML tests passed successfully!")

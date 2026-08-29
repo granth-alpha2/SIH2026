@@ -1,0 +1,3 @@
+"""
+AgriProfit ML API Schemas
+"""
