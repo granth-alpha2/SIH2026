@@ -34,7 +34,7 @@ async function startAll() {
     console.log("\x1b[36m[ML-SERVICE]\x1b[0m Launching FastAPI Python Microservice on port 8000...");
     const pythonCmd = isWin ? "python" : "python3";
     mlProcess = spawn(
-      `${pythonCmd} -m uvicorn ml-service.app.main:app --host 0.0.0.0 --port 8000`,
+      `${pythonCmd} -m uvicorn app.main:app --app-dir ml-service --host 0.0.0.0 --port 8000`,
       { cwd: rootDir, shell: true, stdio: ["inherit", "pipe", "pipe"] }
     );
 
