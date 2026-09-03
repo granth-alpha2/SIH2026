@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cleanPhone, SESSION_COOKIE_NAME, signJWT, verifyOtp } from "@/lib/auth";
+import { getFarmerByPhone, saveFarmer } from "@/lib/farmer-repository";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -24,14 +25,25 @@ export async function POST(request: Request) {
     );
   }
 
-  // Find or create user payload
+  // Find or create farmer in database/repository
   const userId = `usr_${phone.slice(-6)}`;
-  const userName = `Farmer (+91-${phone.slice(0, 5)}...)`;
-  
+  let farmer = await getFarmerByPhone(phone);
+
+  if (!farmer) {
+    const defaultName = `Farmer (+91-${phone.slice(0, 5)}...)`;
+    farmer = await saveFarmer({
+      id: userId,
+      phone,
+      name: defaultName,
+      state: "Punjab",
+      district: "Ludhiana",
+    });
+  }
+
   const token = await signJWT({
-    sub: userId,
-    phone,
-    name: userName,
+    sub: farmer.id,
+    phone: farmer.phone,
+    name: farmer.name,
     role: "farmer",
   });
 
@@ -40,9 +52,12 @@ export async function POST(request: Request) {
     message: "Authentication successful",
     token,
     user: {
-      id: userId,
-      phone,
-      name: userName,
+      id: farmer.id,
+      phone: farmer.phone,
+      name: farmer.name,
+      state: farmer.state,
+      district: farmer.district,
+      village: farmer.village,
       role: "farmer",
     },
   });
@@ -60,4 +75,3 @@ export async function POST(request: Request) {
 
   return response;
 }
-

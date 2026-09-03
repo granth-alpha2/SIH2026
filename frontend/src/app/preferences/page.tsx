@@ -8,6 +8,7 @@ import type {
   ResourceLevel,
   SoilType,
 } from "../api/preferences/repository";
+import { DISTRICT_MASTER } from "@/lib/geo-service";
 
 const candidateCrops = [
   "Wheat",
@@ -33,15 +34,43 @@ export default function PreferencesPage() {
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showSoilDetails, setShowSoilDetails] = useState(false);
 
+  // Farmer account details
+  const [farmerName, setFarmerName] = useState("");
+  const [farmerPhone, setFarmerPhone] = useState("");
+  const [farmerVillage, setFarmerVillage] = useState("");
+  const [farmerDistrict, setFarmerDistrict] = useState("Ludhiana");
+  const [farmerState, setFarmerState] = useState("Punjab");
+  const [farmerLang, setFarmerLang] = useState("en");
+
   useEffect(() => {
     let isMounted = true;
     async function load() {
       try {
-        const res = await fetch("/api/preferences");
-        if (res.ok && isMounted) {
-          const json = await res.json();
+        const [prefRes, authRes] = await Promise.all([
+          fetch("/api/preferences"),
+          fetch("/api/auth/me"),
+        ]);
+
+        if (prefRes.ok && isMounted) {
+          const json = await prefRes.json();
           if (json.success && json.preferences) {
             setPrefs(json.preferences);
+          }
+        }
+
+        if (authRes.ok && isMounted) {
+          const authJson = await authRes.json();
+          if (authJson.success && authJson.user) {
+            setFarmerName(
+              authJson.user.name && !authJson.user.name.includes("(+91") && !authJson.user.name.startsWith("Farmer (")
+                ? authJson.user.name
+                : ""
+            );
+            setFarmerPhone(authJson.user.phone || "");
+            if (authJson.user.village) setFarmerVillage(authJson.user.village);
+            if (authJson.user.district) setFarmerDistrict(authJson.user.district);
+            if (authJson.user.state) setFarmerState(authJson.user.state);
+            if (authJson.user.preferredLanguage) setFarmerLang(authJson.user.preferredLanguage);
           }
         }
       } catch {
@@ -77,17 +106,38 @@ export default function PreferencesPage() {
     setStatusMessage(null);
 
     try {
-      const res = await fetch("/api/preferences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(prefs),
-      });
-      const data = await res.json();
+      const [prefRes, authRes] = await Promise.all([
+        fetch("/api/preferences", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(prefs),
+        }),
+        fetch("/api/auth/me", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: farmerName.trim(),
+            village: farmerVillage.trim(),
+            district: farmerDistrict,
+            state: farmerState,
+            preferredLanguage: farmerLang,
+          }),
+        }),
+      ]);
 
-      if (res.ok && data.success) {
-        setStatusMessage({ type: "success", text: "Farmer preferences saved! Recommendation engine updated." });
+      const prefData = await prefRes.json();
+      const authData = await authRes.json();
+
+      if (prefRes.ok && prefData.success) {
+        setStatusMessage({
+          type: "success",
+          text: `✓ Farmer profile for ${farmerName || "Farmer"} and optimization preferences saved to database!`,
+        });
       } else {
-        setStatusMessage({ type: "error", text: data?.error?.message || "Could not save preferences." });
+        setStatusMessage({
+          type: "error",
+          text: prefData?.error?.message || authData?.error?.message || "Could not save preferences.",
+        });
       }
     } catch {
       setStatusMessage({ type: "error", text: "Network error while saving preferences." });
@@ -150,6 +200,88 @@ export default function PreferencesPage() {
             {statusMessage.text}
           </div>
         )}
+
+        {/* 0. Farmer Identification & Account Details */}
+        <section className="agri-card p-6 space-y-4 border-l-4 border-l-[var(--color-primary)]">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+                Farmer Identification & Account Details
+              </strong>
+              <span className="text-xs text-[var(--text-muted)]">
+                Personal details are stored in the database and linked to your farm recommendations.
+              </span>
+            </div>
+            <span className="agri-badge agri-badge-emerald text-xs">
+              Database Sync Active
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            <div>
+              <label htmlFor="pref-farmer-name" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                Farmer Full Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                id="pref-farmer-name"
+                type="text"
+                value={farmerName}
+                onChange={(e) => setFarmerName(e.target.value)}
+                placeholder="e.g. Ramesh Patel / Gurpreet Singh"
+                className="agri-input w-full font-medium"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="pref-farmer-phone" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                Registered Mobile Number
+              </label>
+              <input
+                id="pref-farmer-phone"
+                type="text"
+                value={farmerPhone ? `+91 ${farmerPhone}` : "+91-9648153123"}
+                disabled
+                className="agri-input w-full bg-[var(--bg-surface-subtle)] opacity-75 cursor-not-allowed font-mono text-xs"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="pref-farmer-village" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                Village / Gram Panchayat
+              </label>
+              <input
+                id="pref-farmer-village"
+                type="text"
+                value={farmerVillage}
+                onChange={(e) => setFarmerVillage(e.target.value)}
+                placeholder="e.g. Samrala / Rampur"
+                className="agri-input w-full text-xs"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="pref-farmer-district" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                District & Agro-Climatic Zone
+              </label>
+              <select
+                id="pref-farmer-district"
+                value={farmerDistrict}
+                onChange={(e) => {
+                  const sel = DISTRICT_MASTER.find((d) => d.district === e.target.value);
+                  setFarmerDistrict(e.target.value);
+                  if (sel) setFarmerState(sel.state);
+                }}
+                className="agri-select w-full text-xs"
+              >
+                {DISTRICT_MASTER.map((d) => (
+                  <option key={d.districtId} value={d.district}>
+                    {d.district} ({d.state}) — {d.zone}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
 
         {/* 1. Risk Appetite */}
         <section className="agri-card p-6 space-y-3">
