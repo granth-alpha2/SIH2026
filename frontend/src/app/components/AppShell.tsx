@@ -60,15 +60,25 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
           const json = await res.json();
           if (json.success && json.user) {
             setUser(json.user);
-            setEditName(
-              json.user.name && !json.user.name.includes("(+91") && !json.user.name.startsWith("Farmer (")
-                ? json.user.name
-                : ""
-            );
+            const currentName = json.user.name || "";
+            const isDefault =
+              !currentName ||
+              currentName.includes("(+91") ||
+              currentName.startsWith("Farmer (");
+
+            setEditName(!isDefault ? currentName : "");
             if (json.user.village) setEditVillage(json.user.village);
             if (json.user.district) setEditDistrict(json.user.district);
             if (json.user.state) setEditState(json.user.state);
             if (json.user.preferredLanguage) setEditLang(json.user.preferredLanguage);
+
+            // If farmer hasn't named their account yet, prompt them to name it!
+            if (isDefault && typeof window !== "undefined") {
+              const dismissed = sessionStorage.getItem("agriprofit_farmer_named_dismissed");
+              if (!dismissed) {
+                setShowEditModal(true);
+              }
+            }
           }
         }
       } catch {
@@ -86,6 +96,13 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
     } catch {
       router.push("/login");
     }
+  }
+
+  function handleDismissModal() {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("agriprofit_farmer_named_dismissed", "true");
+    }
+    setShowEditModal(false);
   }
 
   async function handleSaveProfile(e: React.FormEvent) {
@@ -114,6 +131,9 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
       const data = await res.json();
       if (res.ok && data.success && data.user) {
         setUser(data.user);
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("agriprofit_farmer_named_dismissed");
+        }
         setSaveStatus("✓ Details saved to database successfully!");
         setTimeout(() => {
           setShowEditModal(false);
@@ -379,7 +399,7 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
         {showEditModal && (
           <div
             className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto"
-            onClick={() => setShowEditModal(false)}
+            onClick={handleDismissModal}
           >
             <div
               className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
@@ -388,16 +408,19 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
               <div className="flex items-start justify-between border-b border-[var(--border-subtle)] pb-3.5">
                 <div>
                   <h3 className="text-lg font-bold font-['Space_Grotesk'] text-[var(--text-primary)] flex items-center gap-2">
-                    <span>🌾</span> Farmer Profile & Account Details
+                    <span>🌾</span> {isDefaultName ? "Name Your Account" : "Farmer Profile & Account Details"}
                   </h3>
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    Your details are saved directly to the database and linked to your farm recommendations.
+                    {isDefaultName
+                      ? "👋 Welcome to AgriProfit! Please enter your name and details so your farm plans and advisories are personalized."
+                      : "Your details are saved directly to the database and linked to your farm recommendations."}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
+                  onClick={handleDismissModal}
                   className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-lg text-lg leading-none"
+                  title="Close (Skip for now)"
                 >
                   ✕
                 </button>
@@ -528,11 +551,11 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border-subtle)]">
                   <button
                     type="button"
-                    onClick={() => setShowEditModal(false)}
+                    onClick={handleDismissModal}
                     className="agri-btn-secondary text-xs"
                     disabled={savingProfile}
                   >
-                    Cancel
+                    {isDefaultName ? "Remind Me Later" : "Cancel"}
                   </button>
                   <button
                     type="submit"

@@ -6,6 +6,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const rawPhone = body?.phone;
   const rawOtp = body?.otp;
+  const rawName = body?.name?.trim();
+  const rawState = body?.state;
+  const rawDistrict = body?.district;
 
   if (!rawPhone || !rawOtp) {
     return NextResponse.json(
@@ -30,13 +33,22 @@ export async function POST(request: Request) {
   let farmer = await getFarmerByPhone(phone);
 
   if (!farmer) {
-    const defaultName = `Farmer (+91-${phone.slice(0, 5)}...)`;
+    const finalName = rawName && rawName.length >= 2 ? rawName : `Farmer (+91-${phone.slice(0, 5)}...)`;
     farmer = await saveFarmer({
       id: userId,
       phone,
-      name: defaultName,
-      state: "Punjab",
-      district: "Ludhiana",
+      name: finalName,
+      state: rawState || "Punjab",
+      district: rawDistrict || "Ludhiana",
+    });
+  } else if (rawName && rawName.length >= 2 && (farmer.name.includes("(+91") || farmer.name.startsWith("Farmer ("))) {
+    // If farmer was previously using a placeholder name, upgrade it to their real name
+    farmer = await saveFarmer({
+      id: farmer.id,
+      phone: farmer.phone,
+      name: rawName,
+      state: rawState || farmer.state,
+      district: rawDistrict || farmer.district,
     });
   }
 

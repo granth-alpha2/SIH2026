@@ -14,6 +14,7 @@ const DEMO_FARMERS = [
 export default function LoginPage() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [loading, setLoading] = useState(false);
@@ -31,11 +32,15 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [resendCountdown]);
 
-  async function handleSendOtp(customPhone?: string) {
+  async function handleSendOtp(customPhone?: string, customName?: string) {
     const targetPhone = (customPhone || phone).replace(/\D/g, "");
     if (targetPhone.length !== 10 || !/^[6-9]/.test(targetPhone)) {
       setError("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
       return;
+    }
+
+    if (customName) {
+      setName(customName);
     }
 
     setError("");
@@ -133,7 +138,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, otp: code }),
+        body: JSON.stringify({ phone, otp: code, name: name.trim() || undefined }),
       });
       const data = await res.json();
 
@@ -202,6 +207,24 @@ export default function LoginPage() {
               }}
               className="space-y-4"
             >
+              {/* Optional Farmer Name input */}
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="farmer-name-input"
+                  className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']"
+                >
+                  Farmer Name <span className="text-[var(--text-muted)] text-[10px] font-normal lowercase">(optional)</span>:
+                </label>
+                <input
+                  id="farmer-name-input"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Ramesh Patel / Gurpreet Singh"
+                  className="agri-input w-full font-medium text-sm"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <label
                   htmlFor="phone-input"
@@ -247,7 +270,8 @@ export default function LoginPage() {
                       type="button"
                       onClick={() => {
                         setPhone(farmer.phone);
-                        handleSendOtp(farmer.phone);
+                        setName(farmer.name);
+                        handleSendOtp(farmer.phone, farmer.name);
                       }}
                       className="w-full p-2.5 rounded-xl bg-[var(--bg-surface-subtle)] hover:bg-[var(--bg-surface-accent)] border border-[var(--border-subtle)] hover:border-[var(--border-accent)] text-left transition-all flex items-center justify-between group cursor-pointer"
                     >
