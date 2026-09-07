@@ -178,7 +178,7 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
               {step === "phone" ? "Farmer Workspace Login" : "Verify Phone OTP"}
             </h1>
-            <p className="text-xs text-[var(--text-secondary)]">
+            <p className="text-base text-[var(--text-secondary)] leading-relaxed">
               {step === "phone"
                 ? "Enter your mobile number to receive a one-time SMS verification code."
                 : `Enter the 6-digit code sent via SMS to +91 ${phone}`}
@@ -187,13 +187,13 @@ export default function LoginPage() {
 
           {/* Feedback Messages */}
           {error && (
-            <div className="p-3.5 rounded-xl text-xs font-bold agri-badge-rose border">
+            <div className="p-4 rounded-2xl text-base font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border-2 border-rose-500/30">
               {error}
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3.5 rounded-xl text-xs font-bold agri-badge-emerald border">
+            <div className="p-4 rounded-2xl text-base font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-2 border-emerald-500/30">
               {successMsg}
             </div>
           )}
@@ -205,15 +205,15 @@ export default function LoginPage() {
                 e.preventDefault();
                 handleSendOtp();
               }}
-              className="space-y-4"
+              className="space-y-5"
             >
               {/* Optional Farmer Name input */}
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label
                   htmlFor="farmer-name-input"
-                  className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']"
+                  className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']"
                 >
-                  Farmer Name <span className="text-[var(--text-muted)] text-[10px] font-normal lowercase">(optional)</span>:
+                  Farmer Name <span className="text-[var(--text-muted)] text-sm font-normal lowercase">(optional)</span>:
                 </label>
                 <input
                   id="farmer-name-input"
@@ -221,19 +221,19 @@ export default function LoginPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Ramesh Patel / Gurpreet Singh"
-                  className="agri-input w-full font-medium text-sm"
+                  className="agri-input w-full font-bold text-lg min-h-[56px]"
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label
                   htmlFor="phone-input"
-                  className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']"
+                  className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']"
                 >
                   Mobile Number:
                 </label>
-                <div className="flex gap-2">
-                  <span className="inline-flex items-center px-3.5 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] text-xs font-bold text-[var(--text-primary)]">
+                <div className="flex gap-3">
+                  <span className="inline-flex items-center px-4 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-default)] text-base font-bold text-[var(--text-primary)] min-h-[56px]">
                     🇮🇳 +91
                   </span>
                   <input
@@ -243,7 +243,7 @@ export default function LoginPage() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     placeholder="98765 43210"
-                    className="agri-input flex-1 font-bold text-sm tracking-wider"
+                    className="agri-input flex-1 font-extrabold text-xl tracking-wider min-h-[56px]"
                     required
                     autoFocus
                   />
@@ -253,17 +253,17 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || phone.length !== 10}
-                className="agri-btn-primary w-full py-3.5 text-sm"
+                className="agri-btn-primary w-full min-h-[60px] text-xl font-extrabold shadow-lg"
               >
                 {loading ? "Sending SMS OTP..." : "Send OTP via SMS →"}
               </button>
 
               {/* Quick Demo Profiles */}
-              <div className="pt-4 border-t border-[var(--border-subtle)] space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] text-center font-['Space_Grotesk']">
-                  ⚡ Quick Demo Evaluation Profiles (SIH Judges)
+              <div className="pt-5 border-t-2 border-[var(--border-subtle)] space-y-3">
+                <p className="text-sm font-bold uppercase tracking-wider text-[var(--text-muted)] text-center font-['Space_Grotesk']">
+                  ⚡ 1-Tap Demo Profiles (Tap Any to Login)
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {DEMO_FARMERS.map((farmer) => (
                     <button
                       key={farmer.phone}
@@ -273,17 +273,17 @@ export default function LoginPage() {
                         setName(farmer.name);
                         handleSendOtp(farmer.phone, farmer.name);
                       }}
-                      className="w-full p-2.5 rounded-xl bg-[var(--bg-surface-subtle)] hover:bg-[var(--bg-surface-accent)] border border-[var(--border-subtle)] hover:border-[var(--border-accent)] text-left transition-all flex items-center justify-between group cursor-pointer"
+                      className="w-full p-4 rounded-2xl bg-[var(--bg-surface-subtle)] hover:bg-[var(--bg-surface-accent)] border-2 border-[var(--border-subtle)] hover:border-[var(--color-primary)] text-left transition-all flex items-center justify-between group cursor-pointer"
                     >
-                      <div>
-                        <div className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--color-primary)] font-['Space_Grotesk']">
+                      <div className="space-y-0.5">
+                        <div className="text-base sm:text-lg font-bold text-[var(--text-primary)] group-hover:text-[var(--color-primary)] font-['Space_Grotesk']">
                           {farmer.name}
                         </div>
-                        <div className="text-[11px] text-[var(--text-muted)]">
+                        <div className="text-sm font-semibold text-[var(--text-secondary)]">
                           {farmer.state} · {farmer.crop}
                         </div>
                       </div>
-                      <span className="text-xs font-mono text-[var(--color-primary)] font-bold">
+                      <span className="text-base font-mono text-[var(--color-primary)] font-extrabold">
                         +91 {farmer.phone}
                       </span>
                     </button>
@@ -293,11 +293,11 @@ export default function LoginPage() {
             </form>
           ) : (
             /* STEP 2: 6-Digit OTP Matrix */
-            <div className="space-y-4">
-              <div className="space-y-2">
+            <div className="space-y-5">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[var(--text-secondary)] font-['Space_Grotesk']">
-                    Enter 6-Digit OTP:
+                  <label className="text-base font-bold text-[var(--text-secondary)] font-['Space_Grotesk']">
+                    Enter 6-Digit SMS Code:
                   </label>
                   <button
                     type="button"
@@ -306,14 +306,14 @@ export default function LoginPage() {
                       setError("");
                       setSuccessMsg("");
                     }}
-                    className="text-xs text-[var(--color-primary)] hover:underline font-bold cursor-pointer"
+                    className="text-base text-[var(--color-primary)] hover:underline font-bold cursor-pointer"
                   >
                     Change Number
                   </button>
                 </div>
 
-                {/* 6 Individual Digit Boxes */}
-                <div className="grid grid-cols-6 gap-2" onPaste={handlePaste}>
+                {/* 6 Individual Large Digit Boxes */}
+                <div className="grid grid-cols-6 gap-2 sm:gap-3" onPaste={handlePaste}>
                   {otpDigits.map((digit, idx) => (
                     <input
                       key={idx}
@@ -326,7 +326,7 @@ export default function LoginPage() {
                       value={digit}
                       onChange={(e) => handleDigitChange(idx, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(idx, e)}
-                      className="agri-input h-12 text-center text-xl font-bold p-0"
+                      className="agri-input h-16 text-center text-2xl font-extrabold p-0 border-2 rounded-2xl"
                     />
                   ))}
                 </div>
@@ -336,23 +336,23 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => handleVerifyOtp()}
                 disabled={loading || otpDigits.includes("")}
-                className="agri-btn-primary w-full py-3.5 text-sm"
+                className="agri-btn-primary w-full min-h-[60px] text-xl font-extrabold shadow-lg"
               >
                 {loading ? "Verifying Code..." : "Verify & Enter Farm Workspace →"}
               </button>
 
               {/* Resend Countdown */}
-              <div className="text-center pt-1">
+              <div className="text-center pt-2">
                 {resendCountdown > 0 ? (
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Resend SMS in <span className="font-bold text-[var(--color-primary)]">{resendCountdown}s</span>
+                  <p className="text-base text-[var(--text-muted)]">
+                    Resend SMS in <span className="font-extrabold text-[var(--color-primary)]">{resendCountdown}s</span>
                   </p>
                 ) : (
                   <button
                     type="button"
                     onClick={() => handleSendOtp()}
                     disabled={loading}
-                    className="text-xs text-[var(--color-primary)] font-bold cursor-pointer underline"
+                    className="text-base text-[var(--color-primary)] font-bold cursor-pointer underline"
                   >
                     Didn&apos;t receive SMS? Resend OTP
                   </button>
@@ -360,9 +360,9 @@ export default function LoginPage() {
               </div>
 
               {/* Dev Info */}
-              <div className="p-3 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-subtle)] text-center">
-                <p className="text-xs text-[var(--text-muted)]">
-                  🔒 Live SMS Gateway Active · Master Demo Key: <code className="text-[var(--color-primary)] font-bold">123456</code>
+              <div className="p-4 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] text-center">
+                <p className="text-base text-[var(--text-secondary)] font-medium">
+                  🔒 Live SMS Gateway Active · Master Demo Key: <code className="text-[var(--color-primary)] font-extrabold text-lg">123456</code>
                 </p>
               </div>
             </div>

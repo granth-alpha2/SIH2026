@@ -161,21 +161,21 @@ export default function PreferencesPage() {
 
   return (
     <AppShell pageTitle="Farmer Preferences">
-      <div className="page-container max-w-4xl mx-auto space-y-6">
+      <div className="page-container max-w-4xl mx-auto space-y-8">
         {/* Header Row */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
-          <div className="space-y-1">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 p-6 sm:p-8 rounded-3xl bg-[var(--bg-surface)] border-2 border-[var(--border-default)] shadow-card">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="agri-badge agri-badge-emerald">Optimization Constraints</span>
-              <span className="text-xs text-[var(--text-muted)] font-['Space_Grotesk']">
+              <span className="agri-badge agri-badge-emerald text-sm font-bold">Optimization Constraints</span>
+              <span className="text-sm font-bold text-[var(--text-secondary)] font-['Space_Grotesk']">
                 Active Farm Profile
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-              Farmer Preferences & Risk Constraints
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--text-primary)] font-['Space_Grotesk']">
+              Farmer Preferences & Strategy
             </h1>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Tailor AI crop allocations to your risk tolerance, irrigation capacity, working capital, and preferred crops.
+            <p className="text-base sm:text-lg text-[var(--text-secondary)] leading-relaxed">
+              Tailor crop advice to your risk tolerance, irrigation capacity, working capital, and preferred crops.
             </p>
           </div>
 
@@ -183,18 +183,18 @@ export default function PreferencesPage() {
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="agri-btn-primary py-3 px-6 shrink-0"
+            className="agri-btn-primary min-h-[60px] text-lg sm:text-xl font-extrabold px-8 shrink-0 shadow-lg cursor-pointer"
           >
-            {saving ? "Saving Preferences..." : "Save Preferences →"}
+            {saving ? "Saving Preferences..." : "💾 Save Preferences →"}
           </button>
         </header>
 
         {statusMessage && (
           <div
-            className={`p-4 rounded-xl text-xs font-bold ${
+            className={`p-4 rounded-2xl text-base font-bold border-2 ${
               statusMessage.type === "success"
-                ? "agri-badge-emerald border"
-                : "agri-badge-rose border"
+                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
             }`}
           >
             {statusMessage.text}
@@ -202,22 +202,22 @@ export default function PreferencesPage() {
         )}
 
         {/* 0. Farmer Identification & Account Details */}
-        <section className="agri-card p-6 space-y-4 border-l-4 border-l-[var(--color-primary)]">
+        <section className="agri-card p-6 sm:p-8 rounded-3xl space-y-5 border-2 border-l-8 border-l-[var(--color-primary)]">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+              <strong className="text-xl sm:text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)] block">
                 Farmer Identification & Account Details
               </strong>
-              <span className="text-xs text-[var(--text-muted)]">
+              <span className="text-base text-[var(--text-secondary)] mt-1 block">
                 Personal details are stored in the database and linked to your farm recommendations.
               </span>
             </div>
-            <span className="agri-badge agri-badge-emerald text-xs">
+            <span className="agri-badge agri-badge-emerald text-sm font-bold">
               Database Sync Active
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
             <div>
               <label htmlFor="pref-farmer-name" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
                 Farmer Full Name <span className="text-rose-500">*</span>

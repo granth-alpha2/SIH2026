@@ -18,11 +18,10 @@ You can ask me questions in **English**, **हिंदी**, or **Hinglish**, u
 ];
 
 const sampleQuestions = [
-  "Mere fasal ke patte yellow ho rahe hain, kya karu?",
-  "What fertilizer dose is recommended for my current crop stage?",
-  "How should I manage my field ahead of the upcoming rainfall forecast?",
-  "Is Mustard more profitable than Wheat at current local mandi rates?",
-  "Peele ratuwa (Yellow Rust) ka sabse sasta aur asardaar chemical spray kya hai?",
+  "🌾 गेहूं में यूरिया खाद कब डालें? (When to apply Urea?)",
+  "🌧️ बारिश आने से पहले खेत में क्या करें? (Rain management)",
+  "🌻 क्या इस साल सरसों में ज्यादा मुनाफा है? (Mustard vs Wheat)",
+  "🐛 पत्तियों पर पीले धब्बे आ रहे हैं, क्या करें? (Yellow Rust spray)",
 ];
 
 
@@ -534,53 +533,53 @@ export default function AssistantPage() {
                   className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"} animate-in fade-in`}
                 >
                   <div
-                    className={`max-w-[92%] sm:max-w-[80%] rounded-2xl p-4 sm:p-5 shadow-card ${
+                    className={`max-w-[94%] sm:max-w-[85%] rounded-3xl p-6 sm:p-7 shadow-card border-2 ${
                       msg.sender === "user"
-                        ? "bg-[var(--color-primary)] text-white rounded-br-xs"
-                        : "bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-bl-xs"
+                        ? "bg-[var(--color-primary)] text-white border-transparent rounded-br-xs"
+                        : "bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-default)] rounded-bl-xs"
                     }`}
                   >
                     {/* Header: Sender & Listen Button */}
-                    <div className="flex justify-between items-center gap-3 mb-2.5 pb-1.5 border-b border-[var(--border-subtle)] text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-bold font-['Space_Grotesk'] ${msg.sender === "user" ? "text-emerald-100" : "text-[var(--color-primary)]"}`}>
+                    <div className="flex justify-between items-center gap-3 mb-3 pb-2 border-b-2 border-[var(--border-subtle)]">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`text-base font-bold font-['Space_Grotesk'] ${msg.sender === "user" ? "text-emerald-100" : "text-[var(--color-primary)]"}`}>
                           {msg.sender === "user" ? "👨‍🌾 You (Farmer)" : "🤖 AgriProfit Agronomist"}
                         </span>
-                        <span className="text-[10px] text-[var(--text-muted)]">· {msg.timestamp}</span>
+                        <span className="text-xs text-[var(--text-muted)]">· {msg.timestamp}</span>
                       </div>
 
                       {msg.sender === "assistant" && (
                         <button
                           type="button"
                           onClick={() => speakText(msg.id, msg.text)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+                          className={`px-4 py-2 rounded-xl text-sm sm:text-base font-bold border-2 transition cursor-pointer flex items-center gap-2 shadow-xs min-h-[44px] ${
                             speakingMsgId === msg.id
                               ? "agri-badge-rose animate-pulse"
-                              : "agri-btn-secondary text-xs py-1 px-2.5"
+                              : "agri-btn-secondary py-1.5 px-3.5"
                           }`}
                         >
-                          <span>{speakingMsgId === msg.id ? "⏹ Stop" : "🔊 Listen / सुनिए"}</span>
+                          <span>{speakingMsgId === msg.id ? "⏹ Stop Speaking" : "🔊 Read Aloud / आवाज़ सुनें"}</span>
                         </button>
                       )}
                     </div>
 
                     {/* Attached Photo Preview */}
                     {msg.imageUrl && (
-                      <div className="mb-3 rounded-xl overflow-hidden border border-[var(--border-accent)] bg-black/20 max-w-sm shadow-sm">
+                      <div className="mb-4 rounded-2xl overflow-hidden border-2 border-[var(--border-accent)] bg-black/20 max-w-md shadow-sm">
                         <img
                           src={msg.imageUrl}
                           alt="Crop leaf sample"
-                          className="w-full h-48 sm:h-56 object-cover rounded-lg"
+                          className="w-full h-56 sm:h-64 object-cover rounded-xl"
                         />
-                        <div className="p-2 bg-slate-950/90 text-white text-[11px] flex items-center justify-between font-mono">
+                        <div className="p-3 bg-slate-950/90 text-white text-xs flex items-center justify-between font-mono">
                           <span>📸 Leaf Specimen Scanned</span>
                           <span className="text-emerald-400 font-bold">Multimodal Vision Verified</span>
                         </div>
                       </div>
                     )}
 
-                    {/* Main Content Body */}
-                    <div className={msg.sender === "user" ? "text-white leading-relaxed" : "text-[var(--text-primary)] leading-relaxed"}>
+                    {/* Main Content Body with Large 18-20px Text */}
+                    <div className={`text-lg sm:text-xl leading-relaxed ${msg.sender === "user" ? "text-white" : "text-[var(--text-primary)]"}`}>
                       {renderFormattedText(msg.text)}
                     </div>
 
@@ -698,8 +697,26 @@ export default function AssistantPage() {
               </div>
             )}
 
+            {/* Quick Suggestion Chips for Farmers */}
+            <div className="px-4 py-3 bg-[var(--bg-surface-subtle)] border-t-2 border-[var(--border-subtle)] flex items-center gap-2.5 overflow-x-auto no-scrollbar">
+              <span className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider shrink-0 font-['Space_Grotesk']">
+                💡 Quick Questions:
+              </span>
+              {sampleQuestions.map((q, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSend(q)}
+                  disabled={loading}
+                  className="shrink-0 px-4 py-2.5 rounded-2xl bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-accent)] border-2 border-[var(--border-default)] hover:border-[var(--color-primary)] text-base font-bold text-[var(--text-primary)] transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+
             {/* Bottom Input Action Dock */}
-            <footer className="p-3 sm:p-4 bg-[var(--bg-surface)] border-t border-[var(--border-default)] flex items-center gap-2.5">
+            <footer className="p-4 sm:p-5 bg-[var(--bg-surface)] border-t-2 border-[var(--border-default)] flex items-center gap-3">
               {/* Hidden File Input for Leaf Scan */}
               <input
                 type="file"
@@ -715,10 +732,10 @@ export default function AssistantPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
                 title="Upload or Take Leaf Photo"
-                className="agri-btn-secondary p-3 shrink-0"
+                className="agri-btn-secondary min-h-[58px] px-5 rounded-2xl text-base font-bold shrink-0 flex items-center gap-2"
               >
-                <span className="text-base">📸</span>
-                <span className="hidden sm:inline text-xs font-bold">Scan Leaf</span>
+                <span className="text-2xl">📸</span>
+                <span className="hidden sm:inline">Scan Leaf</span>
               </button>
 
               {/* Voice Mic Button */}
@@ -727,15 +744,15 @@ export default function AssistantPage() {
                 onClick={toggleSpeechRecognition}
                 disabled={loading}
                 title={`Click to speak in ${speechLang === "hi-IN" ? "Hindi/Hinglish" : "English"}`}
-                className={`p-3 rounded-xl border font-bold shadow-2xs transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                className={`min-h-[58px] px-5 rounded-2xl border-2 font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 shadow-sm ${
                   isListening
                     ? "bg-rose-600 text-white border-rose-700 ring-4 ring-rose-300 animate-pulse"
-                    : "agri-btn-secondary"
+                    : "agri-btn-secondary text-base"
                 }`}
               >
-                <span className="text-base">🎤</span>
-                <span className="hidden sm:inline text-xs font-bold">
-                  {isListening ? "Listening..." : "Mic"}
+                <span className="text-2xl">🎤</span>
+                <span className="hidden sm:inline">
+                  {isListening ? "Listening..." : "Mic (बोलें)"}
                 </span>
               </button>
 
@@ -745,9 +762,9 @@ export default function AssistantPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Poochhein ya photo scan karein (e.g. 'Mere wheat ke patte yellow ho rahe hain, kya karu?')..."
+                placeholder="Poochhein ya photo scan karein (e.g. 'गेहूं में यूरिया कब डालें?')..."
                 disabled={loading}
-                className="agri-input flex-1 py-3 px-4 text-xs sm:text-sm"
+                className="agri-input flex-1 min-h-[58px] py-3.5 px-5 text-base sm:text-lg font-medium rounded-2xl"
               />
 
               {/* Send Button */}
@@ -755,7 +772,7 @@ export default function AssistantPage() {
                 type="button"
                 onClick={() => handleSend()}
                 disabled={loading || (!input.trim() && !selectedImage)}
-                className="agri-btn-primary py-3 px-6 shrink-0"
+                className="agri-btn-primary min-h-[58px] text-lg sm:text-xl font-extrabold px-8 rounded-2xl shrink-0 shadow-md cursor-pointer"
               >
                 Send →
               </button>

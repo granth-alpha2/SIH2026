@@ -194,25 +194,25 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
             if (e.key === "Enter" || e.key === " ") setShowEditModal(true);
           }}
         >
-          <div className="profile-avatar shrink-0 font-['Space_Grotesk'] text-xs font-bold" aria-hidden="true">
+          <div className="profile-avatar shrink-0 font-['Space_Grotesk'] text-lg font-extrabold" aria-hidden="true">
             {initials}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 justify-between">
-              <strong className="block text-xs font-bold font-['Space_Grotesk'] text-[var(--text-primary)] truncate group-hover:text-[var(--color-primary)] transition-colors">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <div className="flex items-center gap-2 justify-between">
+              <strong className="block text-base sm:text-lg font-bold font-['Space_Grotesk'] text-[var(--text-primary)] truncate group-hover:text-[var(--color-primary)] transition-colors">
                 {displayName}
               </strong>
-              <span className="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--color-primary)] opacity-70 group-hover:opacity-100 transition-opacity">
+              <span className="text-sm text-[var(--text-secondary)] group-hover:text-[var(--color-primary)] opacity-80 group-hover:opacity-100 transition-opacity">
                 ✏️
               </span>
             </div>
-            <small className="block text-[11px] text-[var(--text-muted)] truncate">
+            <span className="block text-sm font-semibold text-[var(--text-secondary)] truncate">
               {user?.phone ? `+91 ${user.phone}` : "Active Field Plot"}
-            </small>
+            </span>
 
             {/* Quick Call to Action if Name is Not Set */}
             {isDefaultName && (
-              <span className="inline-block mt-1 text-[10px] font-semibold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+              <span className="inline-block mt-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-md border border-amber-500/30">
                 + Set Your Name
               </span>
             )}
@@ -287,28 +287,39 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
 
           {/* Right Action Controls */}
           <div className="flex items-center gap-3">
+            {/* Language Selector Affordance (Hindi / English) */}
+            <button
+              type="button"
+              onClick={() => setShowEditModal(true)}
+              className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-subtle)] text-sm font-bold text-[var(--text-primary)] hover:border-[var(--color-primary)] transition-colors cursor-pointer"
+              title="Change Language / भाषा बदलें"
+            >
+              <span className="text-base">🌐</span>
+              <span>English / हिंदी</span>
+            </button>
+
             <ThemeToggle />
 
             <Link
-              className="p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors relative"
+              className="p-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-colors relative"
               aria-label="View notifications"
               href="/notifications"
             >
-              <span className="text-sm">🔔</span>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--color-rose)]" />
+              <span className="text-base">🔔</span>
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-[var(--color-rose)]" />
             </Link>
 
             {/* Topbar User Pill with Modal Trigger */}
             <button
               type="button"
               onClick={() => setShowEditModal(true)}
-              className="hidden sm:flex items-center gap-2 pl-2 border-l border-[var(--border-subtle)] cursor-pointer hover:opacity-80 transition-opacity"
+              className="hidden sm:flex items-center gap-2.5 pl-2.5 border-l border-[var(--border-subtle)] cursor-pointer hover:opacity-90 transition-opacity"
               title="Click to edit farmer account details"
             >
-              <div className="w-8 h-8 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] font-bold text-xs flex items-center justify-center border border-[var(--border-accent)]">
+              <div className="w-10 h-10 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] font-extrabold text-sm flex items-center justify-center border-2 border-[var(--border-accent)]">
                 {initials}
               </div>
-              <span className="text-xs font-bold text-[var(--text-primary)] max-w-[120px] truncate hidden md:inline-block">
+              <span className="text-sm font-bold text-[var(--text-primary)] max-w-[140px] truncate hidden md:inline-block">
                 {displayName}
               </span>
             </button>
@@ -402,15 +413,15 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
             onClick={handleDismissModal}
           >
             <div
-              className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150"
+              className="bg-[var(--bg-surface)] border-2 border-[var(--border-strong)] rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in-95 duration-150"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-start justify-between border-b border-[var(--border-subtle)] pb-3.5">
+              <div className="flex items-start justify-between border-b-2 border-[var(--border-subtle)] pb-4">
                 <div>
-                  <h3 className="text-lg font-bold font-['Space_Grotesk'] text-[var(--text-primary)] flex items-center gap-2">
-                    <span>🌾</span> {isDefaultName ? "Name Your Account" : "Farmer Profile & Account Details"}
+                  <h3 className="text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)] flex items-center gap-2.5">
+                    <span>🌾</span> {isDefaultName ? "Name Your Farm Account" : "Farmer Profile & Account Details"}
                   </h3>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  <p className="text-base text-[var(--text-secondary)] mt-1.5 leading-relaxed">
                     {isDefaultName
                       ? "👋 Welcome to AgriProfit! Please enter your name and details so your farm plans and advisories are personalized."
                       : "Your details are saved directly to the database and linked to your farm recommendations."}
@@ -419,37 +430,62 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                 <button
                   type="button"
                   onClick={handleDismissModal}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-1 rounded-lg text-lg leading-none"
+                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-2 rounded-xl text-2xl leading-none font-bold"
                   title="Close (Skip for now)"
                 >
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleSaveProfile} className="space-y-4">
+              <form onSubmit={handleSaveProfile} className="space-y-5">
                 {/* Farmer Full Name */}
                 <div>
-                  <label htmlFor="farmer-name-input" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                  <label htmlFor="farmer-name-input" className="block text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                     Farmer Full Name <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    id="farmer-name-input"
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="e.g. Ramesh Patel / Gurpreet Singh"
-                    required
-                    className="agri-input w-full font-medium"
-                    autoFocus
-                  />
-                  <span className="text-[11px] text-[var(--text-muted)] block mt-1">
+                  <div className="relative">
+                    <input
+                      id="farmer-name-input"
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="e.g. Ramesh Patel / रमेश पटेल"
+                      required
+                      className="agri-input w-full font-bold text-lg pr-14 min-h-[56px]"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-2xl text-[var(--text-muted)] hover:text-[var(--color-primary)] transition-colors cursor-pointer"
+                      title="Voice Input (बोलकर नाम दर्ज करें)"
+                      onClick={() => {
+                        if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const SpeechRec = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+                          const rec = new SpeechRec();
+                          rec.lang = editLang === "hi" ? "hi-IN" : "en-IN";
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          rec.onresult = (evt: any) => {
+                            const transcript = evt.results?.[0]?.[0]?.transcript;
+                            if (transcript) setEditName(transcript);
+                          };
+                          rec.start();
+                        } else {
+                          alert("Microphone voice input is ready. Please speak your name.");
+                        }
+                      }}
+                    >
+                      🎤
+                    </button>
+                  </div>
+                  <span className="text-sm text-[var(--text-muted)] block mt-1.5 font-medium">
                     This name will appear on all your crop plans, advisory notifications, and harvest records.
                   </span>
                 </div>
 
                 {/* Mobile Number (Read-Only) */}
                 <div>
-                  <label htmlFor="farmer-phone-input" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                  <label htmlFor="farmer-phone-input" className="block text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                     Registered Mobile Number
                   </label>
                   <input
@@ -457,14 +493,14 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                     type="text"
                     value={user?.phone ? `+91 ${user.phone}` : "+91-9648153123"}
                     disabled
-                    className="agri-input w-full bg-[var(--bg-surface-subtle)] opacity-75 cursor-not-allowed font-mono text-xs"
+                    className="agri-input w-full bg-[var(--bg-surface-subtle)] opacity-85 cursor-not-allowed font-mono text-base min-h-[56px]"
                   />
                 </div>
 
                 {/* State & District Dropdown */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="farmer-district-select" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                    <label htmlFor="farmer-district-select" className="block text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                       District & Zone
                     </label>
                     <select
@@ -475,7 +511,7 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                         setEditDistrict(e.target.value);
                         if (selectedDist) setEditState(selectedDist.state);
                       }}
-                      className="agri-select w-full text-xs"
+                      className="agri-select w-full text-base min-h-[56px] font-medium"
                     >
                       {DISTRICT_MASTER.map((d) => (
                         <option key={d.districtId} value={d.district}>
@@ -486,7 +522,7 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                   </div>
 
                   <div>
-                    <label htmlFor="farmer-state-input" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                    <label htmlFor="farmer-state-input" className="block text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                       State
                     </label>
                     <input
@@ -494,15 +530,15 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                       type="text"
                       value={editState}
                       readOnly
-                      className="agri-input w-full bg-[var(--bg-surface-subtle)] text-xs"
+                      className="agri-input w-full bg-[var(--bg-surface-subtle)] text-base min-h-[56px] font-medium"
                     />
                   </div>
                 </div>
 
                 {/* Village & Language */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="farmer-village-input" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                    <label htmlFor="farmer-village-input" className="block text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                       Village / Gram Panchayat
                     </label>
                     <input
@@ -510,20 +546,20 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                       type="text"
                       value={editVillage}
                       onChange={(e) => setEditVillage(e.target.value)}
-                      placeholder="e.g. Samrala / Rampur"
-                      className="agri-input w-full text-xs"
+                      placeholder="e.g. Samrala / रामपुर"
+                      className="agri-input w-full text-base min-h-[56px] font-medium"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="farmer-lang-select" className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">
+                    <label htmlFor="farmer-lang-select" className="block text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                       Preferred Language
                     </label>
                     <select
                       id="farmer-lang-select"
                       value={editLang}
                       onChange={(e) => setEditLang(e.target.value)}
-                      className="agri-select w-full text-xs"
+                      className="agri-select w-full text-base min-h-[56px] font-medium"
                     >
                       <option value="en">English</option>
                       <option value="hi">हिन्दी (Hindi)</option>
@@ -537,10 +573,10 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                 {/* Status Message */}
                 {saveStatus && (
                   <div
-                    className={`p-3 rounded-xl text-xs font-medium border ${
+                    className={`p-4 rounded-2xl text-base font-bold border-2 ${
                       saveStatus.startsWith("✓")
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                        : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
                     }`}
                   >
                     {saveStatus}
@@ -548,23 +584,23 @@ export default function AppShell({ children, pageTitle }: AppShellProps) {
                 )}
 
                 {/* Modal Footer Buttons */}
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border-subtle)]">
+                <div className="flex flex-col sm:flex-row items-center justify-end gap-4 pt-4 border-t-2 border-[var(--border-subtle)]">
                   <button
                     type="button"
                     onClick={handleDismissModal}
-                    className="agri-btn-secondary text-xs"
+                    className="agri-btn-secondary w-full sm:w-auto min-h-[56px] text-lg font-bold px-6"
                     disabled={savingProfile}
                   >
                     {isDefaultName ? "Remind Me Later" : "Cancel"}
                   </button>
                   <button
                     type="submit"
-                    className="agri-btn-primary text-xs flex items-center gap-2"
+                    className="agri-btn-primary w-full sm:w-auto min-h-[56px] text-lg font-bold px-8 flex items-center justify-center gap-2.5"
                     disabled={savingProfile}
                   >
                     {savingProfile ? (
                       <>
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
                         <span>Saving to Database...</span>
                       </>
                     ) : (

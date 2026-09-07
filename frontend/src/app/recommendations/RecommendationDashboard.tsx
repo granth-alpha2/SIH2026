@@ -273,48 +273,47 @@ export default function RecommendationDashboard() {
   return (
     <AppShell pageTitle="Crop Recommendations">
       <div className="page-container space-y-6">
-        {/* 1. Header Title Row */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-card">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="agri-badge agri-badge-emerald">
-                🌾 {farmName} ({totalLandAcres.toFixed(2)} ac / {(totalLandAcres / 2.47105).toFixed(2)} ha)
+        {/* 1. Dashboard Header Banner */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-5 p-6 sm:p-8 rounded-3xl bg-[var(--bg-surface)] border-2 border-[var(--border-default)] shadow-card">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="agri-badge agri-badge-emerald text-sm font-bold">
+                🌾 {farmName} ({totalLandAcres.toFixed(2)} Acres / {(totalLandAcres / 2.47105).toFixed(2)} ha)
               </span>
-              <span className="agri-badge agri-badge-sky">
+              <span className="agri-badge agri-badge-sky text-sm font-bold">
                 📍 {farmLocation}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-              Multi-Crop Profit & Portfolio Strategy
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--text-primary)] font-['Space_Grotesk']">
+              Recommended Crop Plan
             </h1>
-            <p className="text-sm text-[var(--text-secondary)] max-w-3xl">
-              Constrained multi-crop allocation scaled to your exact {totalLandAcres.toFixed(2)}-acre boundary, balancing expected yields, MSP floor protection, and climate forecasts.
+            <p className="text-base sm:text-lg text-[var(--text-secondary)] max-w-3xl leading-relaxed">
+              Tailored for your exact {totalLandAcres.toFixed(2)}-acre land, balancing maximum profit, water availability, and government MSP floor price protection.
             </p>
           </div>
 
           <button
             type="button"
             onClick={acceptRecommendation}
-            className="agri-btn-primary py-3 px-6 shrink-0"
+            className="agri-btn-primary min-h-[60px] text-lg sm:text-xl font-extrabold px-8 shrink-0 shadow-lg cursor-pointer"
           >
-            <span>✓</span>
-            <span>Accept & Generate Farm Plan →</span>
+            <span>✓ Accept & View Farm Plan →</span>
           </button>
         </header>
 
         {loading && (
-          <div className="agri-card p-12 text-center text-[var(--text-muted)] space-y-2">
-            <div className="inline-block w-8 h-8 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm font-medium">Running ML yield models & portfolio optimization for {totalLandAcres.toFixed(2)} acres...</p>
+          <div className="agri-card p-12 text-center text-[var(--text-secondary)] space-y-3 rounded-3xl border-2">
+            <div className="inline-block w-10 h-10 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+            <p className="text-lg font-bold">Calculating best crop combinations for your {totalLandAcres.toFixed(2)} acres...</p>
           </div>
         )}
 
         {!loading && portfolio && (
           <>
             {/* 2. Top Strategy & Financial Overview Panel */}
-            <section className="agri-card p-6">
+            <section className="agri-card p-6 sm:p-8 rounded-3xl border-2 space-y-6">
               <div className="flex items-center gap-6 flex-wrap lg:flex-nowrap">
-                <div className="flex-none mx-auto lg:mx-0 p-2 rounded-2xl bg-[var(--bg-surface-subtle)] border border-[var(--border-subtle)]">
+                <div className="flex-none mx-auto lg:mx-0 p-3 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)]">
                   <DonutChart
                     allocations={editedAllocations.map((a: AllocatedCropItem) => ({
                       cropName: a.cropName,
@@ -326,53 +325,53 @@ export default function RecommendationDashboard() {
                 <div className="flex-1 space-y-4 min-w-0">
                   <div className="flex justify-between items-start flex-wrap gap-2">
                     <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-primary)] font-['Space_Grotesk']">
-                        {portfolio.season} Season Strategy · {portfolio.riskAppetite} Risk Profile
+                      <span className="text-sm font-bold uppercase tracking-wider text-[var(--color-primary)] font-['Space_Grotesk']">
+                        {portfolio.season} Season Strategy · {portfolio.riskAppetite} Strategy
                       </span>
-                      <h2 className="text-xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)] mt-0.5">
+                      <h2 className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] mt-1">
                         {portfolio.title}
                       </h2>
                     </div>
-                    <span className="agri-badge agri-badge-emerald text-xs px-3 py-1">
-                      Portfolio Score: {portfolio.overallScore}/100
+                    <span className="agri-badge agri-badge-emerald text-base px-4 py-1.5 font-bold">
+                      Confidence Score: {portfolio.overallScore}/100
                     </span>
                   </div>
 
-                  {/* 4 Financial KPI Chips with crisp high contrast */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[var(--border-subtle)]">
-                    <div className="p-3 rounded-xl bg-[var(--color-emerald-bg)] border border-[var(--color-emerald-border)]">
-                      <span className="text-[10px] text-[var(--color-emerald-text)] font-bold uppercase block tracking-wider">
+                  {/* 4 Financial KPI Chips with high contrast & large text */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t-2 border-[var(--border-subtle)]">
+                    <div className="p-4 rounded-2xl bg-[var(--color-emerald-bg)] border-2 border-[var(--color-emerald-border)] space-y-1">
+                      <span className="text-sm text-[var(--color-emerald-text)] font-bold uppercase block tracking-wider">
                         Expected Net Profit
                       </span>
-                      <span className="text-base font-bold font-['Space_Grotesk'] text-[var(--color-emerald-text)]">
+                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--color-emerald-text)] block">
                         {formatCurrency(totalEditedProfit)}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-subtle)]">
-                      <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block tracking-wider">
+                    <div className="p-4 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] space-y-1">
+                      <span className="text-sm text-[var(--text-muted)] font-bold uppercase block tracking-wider">
                         Total Gross Revenue
                       </span>
-                      <span className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] block">
                         {formatCurrency(totalEditedRevenue)}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-subtle)]">
-                      <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase block tracking-wider">
-                        Estimated Input Cost
+                    <div className="p-4 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] space-y-1">
+                      <span className="text-sm text-[var(--text-muted)] font-bold uppercase block tracking-wider">
+                        Estimated Seed/Fertilizer Cost
                       </span>
-                      <span className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] block">
                         {formatCurrency(totalEditedCost)}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-xl bg-[var(--color-sky-bg)] border border-[var(--color-sky-border)]">
-                      <span className="text-[10px] text-[var(--color-sky-text)] font-bold uppercase block tracking-wider">
-                        ROI Multiplier
+                    <div className="p-4 rounded-2xl bg-[var(--color-sky-bg)] border-2 border-[var(--color-sky-border)] space-y-1">
+                      <span className="text-sm text-[var(--color-sky-text)] font-bold uppercase block tracking-wider">
+                        Profit Return (ROI)
                       </span>
-                      <span className="text-base font-bold font-['Space_Grotesk'] text-[var(--color-sky-text)]">
-                        {totalEditedRoi}x ({Math.round(totalEditedRoi * 100 - 100)}%)
+                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--color-sky-text)] block">
+                        {totalEditedRoi}x
                       </span>
                     </div>
                   </div>
@@ -380,51 +379,53 @@ export default function RecommendationDashboard() {
               </div>
             </section>
 
-            {/* 3. Four-Part Strategic Allocation List */}
-            <section className="agri-card p-6 space-y-4">
-              <div className="flex justify-between items-center flex-wrap gap-2 pb-3 border-b border-[var(--border-subtle)]">
+            {/* 3. Single-Column Stack of Large Crop Cards */}
+            <section className="agri-card p-6 sm:p-8 rounded-3xl border-2 space-y-6">
+              <div className="flex justify-between items-center flex-wrap gap-2 pb-4 border-b-2 border-[var(--border-subtle)]">
                 <div>
-                  <h3 className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
-                    RECOMMENDED 4-PART ALLOCATION (TOTAL: {totalEditedAcres.toFixed(2)} / {totalLandAcres.toFixed(2)} ACRES)
+                  <h3 className="text-xl sm:text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                    Recommended Crops & Land Division (Total: {totalEditedAcres.toFixed(2)} / {totalLandAcres.toFixed(2)} Acres)
                   </h3>
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Adjust acreage per crop below. Financial predictions and ROI recalculate in real time.
+                  <p className="text-base text-[var(--text-secondary)] mt-1">
+                    You can adjust the acres for each crop below. Earnings recalculate automatically.
                   </p>
                 </div>
                 {Math.abs(totalEditedAcres - totalLandAcres) > 0.05 && (
-                  <span className="agri-badge agri-badge-amber text-xs px-3 py-1">
-                    ⚠️ Allocated ({totalEditedAcres.toFixed(2)} ac) differs from boundary ({totalLandAcres.toFixed(2)} ac)
+                  <span className="agri-badge agri-badge-amber text-sm px-3.5 py-1.5 font-bold">
+                    ⚠️ Total acres ({totalEditedAcres.toFixed(2)} ac) differs from boundary ({totalLandAcres.toFixed(2)} ac)
                   </span>
                 )}
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {editedAllocations.map((alloc: AllocatedCropItem, idx: number) => (
                   <div
                     key={alloc.cropId}
-                    className="p-4 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-default)] hover:border-[var(--border-strong)] transition-all space-y-3"
+                    className="p-6 rounded-3xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-default)] hover:border-[var(--color-primary)] transition-all space-y-4"
                   >
-                    <div className="flex justify-between items-center flex-wrap gap-3">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <strong className="text-sm font-bold text-[var(--text-primary)]">
-                          {alloc.cropName} ({alloc.hindiName})
-                        </strong>
-                        <span className="agri-badge agri-badge-emerald">
-                          Score: {alloc.score}/100
-                        </span>
-                        {alloc.mspSafety && (
-                          <span className="agri-badge agri-badge-sky">
-                            ✓ MSP ₹{alloc.mspPrice}/q
+                    <div className="flex justify-between items-start flex-wrap gap-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <strong className="text-xl sm:text-2xl font-extrabold text-[var(--text-primary)] font-['Space_Grotesk']">
+                            {alloc.cropName} ({alloc.hindiName})
+                          </strong>
+                          <span className="agri-badge agri-badge-emerald text-sm font-bold">
+                            Score: {alloc.score}/100
                           </span>
-                        )}
-                        <span className="text-xs text-[var(--text-muted)]">
-                          · {alloc.strategyRole}
-                        </span>
+                          {alloc.mspSafety && (
+                            <span className="agri-badge agri-badge-sky text-sm font-bold">
+                              ✓ Govt MSP ₹{alloc.mspPrice}/q
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-base font-semibold text-[var(--text-secondary)]">
+                          Role: {alloc.strategyRole} · Season: {alloc.season} ({alloc.category})
+                        </p>
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <label htmlFor={`acres-input-${alloc.cropId}`} className="text-xs font-semibold text-[var(--text-secondary)]">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-2.5">
+                          <label htmlFor={`acres-input-${alloc.cropId}`} className="text-base font-bold text-[var(--text-secondary)]">
                             Acres:
                           </label>
                           <input
@@ -435,45 +436,45 @@ export default function RecommendationDashboard() {
                             max={totalLandAcres * 2}
                             value={alloc.allocatedAcres}
                             onChange={(e) => handleAcreChange(alloc.cropId, parseFloat(e.target.value) || 0)}
-                            className="agri-input w-24 text-center font-bold py-1.5 px-2"
+                            className="agri-input w-28 text-center font-extrabold text-xl min-h-[54px] p-2"
                           />
                         </div>
-                        <div className="text-right min-w-[100px]">
-                          <span className="text-sm font-bold font-['Space_Grotesk'] text-[var(--color-primary)] block">
+                        <div className="text-right min-w-[120px]">
+                          <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--color-primary)] block">
                             {formatCurrency(alloc.allocatedProfit)}
                           </span>
-                          <span className="text-[10px] text-[var(--text-muted)] block">Net Profit</span>
+                          <span className="text-sm text-[var(--text-secondary)] font-bold block">Net Profit</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="w-full bg-[var(--bg-canvas)] h-2 rounded-full overflow-hidden border border-[var(--border-subtle)]">
+                    <div className="w-full bg-[var(--bg-canvas)] h-3 rounded-full overflow-hidden border border-[var(--border-subtle)]">
                       <div
                         className="bg-[var(--color-primary)] h-full transition-all duration-300"
                         style={{ width: `${Math.min(100, (alloc.allocatedAcres / (totalLandAcres || 1)) * 100)}%` }}
                       />
                     </div>
 
-                    <div className="flex justify-between items-center text-xs text-[var(--text-secondary)] pt-1 flex-wrap gap-2">
+                    <div className="flex justify-between items-center text-base text-[var(--text-secondary)] pt-1 flex-wrap gap-3">
                       <span>
-                        Break-even: <strong className="text-[var(--text-primary)]">{alloc.breakEvenYield} q/ac</strong> @ ₹{alloc.breakEvenPrice}/q · Est Cost: {formatCurrency(alloc.costPerAcre)}/ac
+                        Break-even: <strong className="text-[var(--text-primary)] font-bold">{alloc.breakEvenYield} q/ac</strong> @ ₹{alloc.breakEvenPrice}/q · Seed/Fertilizer Cost: {formatCurrency(alloc.costPerAcre)}/ac
                       </span>
                       <button
                         type="button"
                         onClick={() => setOpenExplanation(openExplanation === idx ? null : idx)}
-                        className="text-xs font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
+                        className="text-base font-bold text-[var(--color-primary)] hover:underline cursor-pointer flex items-center gap-1.5"
                       >
-                        {openExplanation === idx ? "Hide rationale ▲" : "Why this crop? ▼"}
+                        {openExplanation === idx ? "Hide Explanation ▲" : "Why Grow This Crop? ▼"}
                       </button>
                     </div>
 
                     {openExplanation === idx && (
-                      <div className="p-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] space-y-1">
-                        <p className="font-bold text-[var(--color-primary-text)] font-['Space_Grotesk']">
-                          ICAR & Agro-Climatic Rationale:
+                      <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border-2 border-[var(--border-default)] text-base text-[var(--text-secondary)] space-y-2 animate-in fade-in duration-150">
+                        <p className="font-bold text-[var(--text-primary)] font-['Space_Grotesk'] text-lg">
+                          🌾 Agronomist Reason:
                         </p>
-                        <ul className="list-disc list-inside space-y-0.5 text-xs">
+                        <ul className="list-disc list-inside space-y-1 text-base leading-relaxed">
                           {alloc.reasonsForAllocation.map((r, rIdx) => (
                             <li key={rIdx}>{r}</li>
                           ))}

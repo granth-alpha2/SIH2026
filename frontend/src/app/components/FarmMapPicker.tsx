@@ -446,67 +446,143 @@ export default function FarmMapPicker({
     );
   }
 
+  const [areaUnit, setAreaUnit] = useState<"acres" | "ha" | "sqm">("acres");
+
   const measuredHectares = (measuredAreaAcres / 2.47105).toFixed(2);
-  const measuredSqMeters = Math.round(measuredAreaAcres * 4046.8564224).toLocaleString();
+  const measuredSqMeters = Math.round(measuredAreaAcres * 4046.8564224).toLocaleString("en-IN");
+  const activeCenter = fallbackCentroid;
+  const currentDistrict = resolveDistrictFromCoords(activeCenter.lat, activeCenter.lng);
 
   return (
-    <div className="picker-wrap space-y-5">
-      {/* Top Header & Geospatial Measurement Banner */}
-      <div className="flex gap-4 items-center justify-between flex-wrap p-4 rounded-2xl bg-[var(--bg-surface-accent)] border border-[var(--border-accent)]">
-        <div className="flex items-center gap-3 flex-1 min-w-[260px]">
-          <label htmlFor="farm-name-input" className="text-xs font-bold text-[var(--color-primary-text)] uppercase tracking-wider shrink-0 font-['Space_Grotesk']">
-            Plot Name:
+    <div className="picker-wrap space-y-6">
+      {/* 1. GIANT FULL-WIDTH "USE MY LOCATION" BUTTON */}
+      <button
+        type="button"
+        onClick={handleUseMyLocation}
+        disabled={detectingLocation}
+        className="agri-btn-primary w-full min-h-[64px] text-xl sm:text-2xl font-extrabold flex items-center justify-center gap-3 shadow-xl cursor-pointer"
+        title="Detect GPS coordinates and center map"
+      >
+        <span className="text-3xl">📍</span>
+        <span>{detectingLocation ? "Finding Your Field Coordinates..." : "📍 Tap Here to Find My Farm (Use GPS)"}</span>
+      </button>
+
+      {/* 2. Plain Language Location & Zone Sentence */}
+      <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border-2 border-[var(--border-default)] flex items-center gap-3.5 shadow-sm">
+        <span className="text-3xl shrink-0">🌾</span>
+        <p className="text-lg sm:text-xl font-bold text-[var(--text-primary)] leading-relaxed">
+          Your farm is in <span className="text-[var(--color-primary)] font-extrabold">{currentDistrict.district} district ({currentDistrict.state})</span>, suitable for <span className="text-[var(--color-primary)] font-extrabold">{currentDistrict.agroClimaticZone}</span> crops.
+        </p>
+      </div>
+
+      {/* 3. Farm Name and Single-Unit Area Readout with Toggle */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Farm Name */}
+        <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border-2 border-[var(--border-default)] space-y-2">
+          <label htmlFor="farm-name-input" className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+            Farm Plot Name:
           </label>
           <input
             id="farm-name-input"
             type="text"
             value={farmName}
             onChange={(e) => setFarmName(e.target.value)}
-            placeholder="e.g. North Canal Field"
-            className="agri-input font-bold max-w-sm"
+            placeholder="e.g. My Canal Field / मेरा खेत"
+            className="agri-input font-bold text-lg min-h-[56px]"
           />
         </div>
 
-        {/* Real-Time Live Area Display in Acres, Hectares & Sq Meters */}
-        <div className="flex items-center gap-4 bg-[var(--bg-surface)] px-4 py-2 rounded-xl border border-[var(--border-strong)] shadow-card">
-          <div className="text-right">
-            <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block tracking-wider">
-              Geodesic Computed Area
+        {/* Live Area in ONE unit at a time with simple toggle */}
+        <div className="p-5 rounded-2xl bg-[var(--bg-surface)] border-2 border-[var(--border-default)] flex flex-col justify-between gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider font-['Space_Grotesk']">
+              Measured Land Area:
             </span>
-            <div className="flex items-center gap-2">
-              <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--color-primary)]">
-                {measuredAreaAcres.toFixed(2)} Acres
-              </strong>
-              <span className="text-[var(--border-strong)]">·</span>
-              <span className="font-semibold text-xs text-[var(--text-secondary)]">{measuredHectares} ha</span>
-              <span className="text-[var(--border-strong)]">·</span>
-              <span className="text-[var(--text-muted)] font-mono text-xs">{measuredSqMeters} m²</span>
+            {/* Simple Unit Switcher */}
+            <div className="inline-flex rounded-xl bg-[var(--bg-surface-subtle)] p-1 border border-[var(--border-subtle)]">
+              <button
+                type="button"
+                onClick={() => setAreaUnit("acres")}
+                className={`px-3 py-1 rounded-lg text-sm font-bold cursor-pointer ${
+                  areaUnit === "acres" ? "bg-[var(--color-primary)] text-white" : "text-[var(--text-secondary)]"
+                }`}
+              >
+                Acres
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaUnit("ha")}
+                className={`px-3 py-1 rounded-lg text-sm font-bold cursor-pointer ${
+                  areaUnit === "ha" ? "bg-[var(--color-primary)] text-white" : "text-[var(--text-secondary)]"
+                }`}
+              >
+                Hectares
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaUnit("sqm")}
+                className={`px-3 py-1 rounded-lg text-sm font-bold cursor-pointer ${
+                  areaUnit === "sqm" ? "bg-[var(--color-primary)] text-white" : "text-[var(--text-secondary)]"
+                }`}
+              >
+                Sq. Meters
+              </button>
             </div>
+          </div>
+
+          <div className="text-3xl sm:text-4xl font-extrabold font-['Space_Grotesk'] text-[var(--color-primary)]">
+            {areaUnit === "acres" && `${measuredAreaAcres.toFixed(2)} Acres`}
+            {areaUnit === "ha" && `${measuredHectares} Hectares`}
+            {areaUnit === "sqm" && `${measuredSqMeters} m²`}
           </div>
         </div>
       </div>
 
-      {/* Map Toolbar with "Use My Location" & Search */}
-      <div className="picker-toolbar flex gap-3 flex-wrap items-center justify-between">
-        <div className="flex gap-2.5 items-center flex-1 min-w-[280px]">
-          {/* Prominent "Use My Location" Button */}
+      {/* 4. Three Plain-Language Large Preset Cards */}
+      <div className="space-y-2">
+        <label className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+          Quick Preset Sizes (Tap to Set Area):
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             type="button"
-            onClick={handleUseMyLocation}
-            disabled={detectingLocation}
-            className="agri-btn-primary shrink-0"
-            title="Detect GPS coordinates and center map"
+            onClick={() => applyPresetField(2.5)}
+            className="p-5 rounded-2xl border-2 border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--color-primary)] hover:bg-[var(--bg-surface-accent)] transition-all flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer"
           >
-            <span>📍</span>
-            <span>{detectingLocation ? "Detecting GPS..." : "Use My Location"}</span>
+            <span className="text-4xl">🌱</span>
+            <strong className="text-lg font-bold text-[var(--text-primary)]">Small Farm</strong>
+            <span className="text-base font-semibold text-[var(--text-secondary)]">~2.5 Acres</span>
           </button>
+          <button
+            type="button"
+            onClick={() => applyPresetField(5.0)}
+            className="p-5 rounded-2xl border-2 border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--color-primary)] hover:bg-[var(--bg-surface-accent)] transition-all flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer"
+          >
+            <span className="text-4xl">🌾</span>
+            <strong className="text-lg font-bold text-[var(--text-primary)]">Medium Farm</strong>
+            <span className="text-base font-semibold text-[var(--text-secondary)]">~5.0 Acres</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPresetField(10.0)}
+            className="p-5 rounded-2xl border-2 border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[var(--color-primary)] hover:bg-[var(--bg-surface-accent)] transition-all flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer"
+          >
+            <span className="text-4xl">🚜</span>
+            <strong className="text-lg font-bold text-[var(--text-primary)]">Large Farm</strong>
+            <span className="text-base font-semibold text-[var(--text-secondary)]">~10.0 Acres</span>
+          </button>
+        </div>
+      </div>
 
+      {/* 5. Map Search & Switcher Toolbar */}
+      <div className="picker-toolbar flex gap-3 flex-wrap items-center justify-between pt-1">
+        <div className="flex gap-2.5 items-center flex-1 min-w-[280px]">
           {!useFallbackMode && apiKey ? (
             <input
               ref={searchElement}
               aria-label="Search farm location"
               placeholder="Search village, mandi, district or landmark..."
-              className="agri-input flex-1"
+              className="agri-input flex-1 min-h-[56px] text-base font-medium"
             />
           ) : (
             <select
@@ -517,7 +593,7 @@ export default function FarmMapPicker({
                 const dInfo = resolveDistrictFromCoords(lat, lng);
                 setFarmName(`${dInfo.district} Farm Plot`);
               }}
-              className="agri-select flex-1"
+              className="agri-select flex-1 min-h-[56px] text-base font-medium"
             >
               {DISTRICT_MASTER.map((d) => (
                 <option key={d.districtId} value={`${d.lat},${d.lng}`}>
@@ -528,25 +604,25 @@ export default function FarmMapPicker({
           )}
         </div>
 
-        <div className="flex gap-2 items-center flex-wrap">
-          {/* Toggle between Google Satellite and Vector Canvas */}
+        <div className="flex gap-3 items-center flex-wrap">
+          {/* Plain Language Map Switcher */}
           <button
             type="button"
             onClick={() => {
               setUseFallbackMode(!useFallbackMode);
-              setStatus(!useFallbackMode ? "Switched to Interactive Vector Farm Planner." : "Attempting Google Maps satellite connection...");
+              setStatus(!useFallbackMode ? "Switched to Drawing Pad View." : "Connecting to Satellite View...");
             }}
-            className="agri-btn-secondary text-xs"
-            title="Toggle Map Engine"
+            className="agri-btn-secondary min-h-[52px] text-base font-bold"
+            title="Switch Map View"
           >
-            {useFallbackMode ? "🛰️ Try Google Maps" : "📐 Vector Grid Mode"}
+            {useFallbackMode ? "🛰️ Switch to Satellite Map" : "📐 Switch to Drawing Pad"}
           </button>
 
           {!useFallbackMode && apiKey && !mapError && (
             <button
               type="button"
               onClick={() => finishDrawingRef.current()}
-              className="agri-btn-primary text-xs"
+              className="agri-btn-primary min-h-[52px] text-base font-bold"
             >
               ✓ Complete Boundary
             </button>
@@ -555,7 +631,7 @@ export default function FarmMapPicker({
             <button
               type="button"
               onClick={resetFallbackPoints}
-              className="agri-btn-secondary text-xs"
+              className="agri-btn-secondary min-h-[52px] text-base font-bold"
             >
               Reset Points
             </button>
@@ -563,38 +639,10 @@ export default function FarmMapPicker({
         </div>
       </div>
 
-      {/* Quick Presets Bar for Judges & Instant Testing */}
-      <div className="flex items-center gap-2 flex-wrap text-xs bg-[var(--bg-surface)] p-2.5 rounded-xl border border-[var(--border-default)]">
-        <span className="text-[var(--text-muted)] font-semibold uppercase tracking-wider text-[10px]">
-          ⚡ Quick Field Presets:
-        </span>
-        <button
-          type="button"
-          onClick={() => applyPresetField(2.5)}
-          className="px-2.5 py-1 rounded-lg bg-[var(--bg-surface-accent)] text-[var(--color-primary-text)] font-medium hover:bg-[var(--color-primary-light)] transition-colors border border-[var(--border-accent)]"
-        >
-          🌱 2.5 Acres Smallholder
-        </button>
-        <button
-          type="button"
-          onClick={() => applyPresetField(5.0)}
-          className="px-2.5 py-1 rounded-lg bg-[var(--bg-surface-accent)] text-[var(--color-primary-text)] font-medium hover:bg-[var(--color-primary-light)] transition-colors border border-[var(--border-accent)]"
-        >
-          🌾 5.0 Acres Commercial
-        </button>
-        <button
-          type="button"
-          onClick={() => applyPresetField(10.0)}
-          className="px-2.5 py-1 rounded-lg bg-[var(--bg-surface-accent)] text-[var(--color-primary-text)] font-medium hover:bg-[var(--color-primary-light)] transition-colors border border-[var(--border-accent)]"
-        >
-          🚜 10.0 Acres Large Farm
-        </button>
-      </div>
-
-      {/* Status Bar */}
-      <div className="text-xs text-[var(--color-primary-text)] bg-[var(--color-primary-light)] px-3.5 py-2 rounded-xl border border-[var(--border-accent)] font-medium flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse" />
-        <span>{status}</span>
+      {/* Helpful Status Notice */}
+      <div className="p-4 bg-[var(--color-primary-light)] border-2 border-[var(--border-accent)] rounded-2xl text-base font-bold text-[var(--color-primary-text)] flex items-center gap-3">
+        <span className="w-3 h-3 rounded-full bg-[var(--color-primary)] animate-pulse shrink-0" />
+        <span>💡 {status}</span>
       </div>
 
       {/* Notice if Google Maps API key has domain / referer restrictions */}
@@ -656,14 +704,14 @@ export default function FarmMapPicker({
 
       {/* Agronomic Preferences & Sections */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-        <div className="agri-card p-4 space-y-1.5">
-          <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+        <div className="agri-card p-5 space-y-2 border-2">
+          <label className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
             Water Source Access:
           </label>
           <select
             value={water}
             onChange={(e) => setWater(e.target.value)}
-            className="agri-select"
+            className="agri-select min-h-[56px] text-base font-medium"
           >
             <option value="Low">Low (Rainfed / Limited Tanker)</option>
             <option value="Medium">Medium (Canal / Shared Tube Well)</option>
@@ -671,14 +719,14 @@ export default function FarmMapPicker({
           </select>
         </div>
 
-        <div className="agri-card p-4 space-y-1.5">
-          <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
-            Risk Appetite:
+        <div className="agri-card p-5 space-y-2 border-2">
+          <label className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+            Risk Strategy:
           </label>
           <select
             value={risk}
             onChange={(e) => setRisk(e.target.value)}
-            className="agri-select"
+            className="agri-select min-h-[56px] text-base font-medium"
           >
             <option value="Conservative">Conservative (MSP Floor Focus)</option>
             <option value="Balanced">Balanced (Optimal Multi-Crop Split)</option>
@@ -686,23 +734,23 @@ export default function FarmMapPicker({
           </select>
         </div>
 
-        <div className="agri-card p-4 space-y-1.5">
-          <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
-            Primary Crop Section:
+        <div className="agri-card p-5 space-y-2 border-2">
+          <label className="text-base font-bold text-[var(--text-secondary)] uppercase tracking-wider block font-['Space_Grotesk']">
+            Primary Crop & Acres:
           </label>
           <div className="flex gap-2">
             <input
               type="text"
               value={sections[0]?.crop || "Wheat"}
               onChange={(e) => updateSection(0, "crop", e.target.value)}
-              className="agri-input w-1/2"
+              className="agri-input w-1/2 min-h-[56px] text-base font-medium"
               placeholder="Crop Name"
             />
             <input
               type="number"
               value={sections[0]?.area || measuredAreaAcres}
               onChange={(e) => updateSection(0, "area", e.target.value)}
-              className="agri-input w-1/2"
+              className="agri-input w-1/2 min-h-[56px] text-base font-medium"
               placeholder="Acres"
             />
           </div>
@@ -712,10 +760,10 @@ export default function FarmMapPicker({
       {/* Save Notification */}
       {saveMessage && (
         <div
-          className={`p-3.5 rounded-xl text-xs font-bold ${
+          className={`p-4 rounded-2xl text-base font-bold border-2 ${
             saveMessage.type === "success"
-              ? "agri-badge-emerald border"
-              : "agri-badge-rose border"
+              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+              : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
           }`}
         >
           {saveMessage.text}
@@ -723,14 +771,24 @@ export default function FarmMapPicker({
       )}
 
       {/* Save Button */}
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex justify-end gap-3 pt-3">
         <button
           type="button"
           onClick={handleSaveFarm}
           disabled={saving || measuredAreaAcres <= 0}
-          className="agri-btn-primary py-3 px-8 text-sm"
+          className="agri-btn-primary w-full sm:w-auto min-h-[60px] text-lg sm:text-xl font-extrabold px-10 flex items-center justify-center gap-3 shadow-lg"
         >
-          {saving ? "Saving Field Boundary to PostGIS..." : "Save Farm Boundary & Optimize Plan →"}
+          {saving ? (
+            <>
+              <span className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Saving Field Boundary...</span>
+            </>
+          ) : (
+            <>
+              <span>💾</span>
+              <span>Save Farm Boundary & See Recommendations →</span>
+            </>
+          )}
         </button>
       </div>
     </div>

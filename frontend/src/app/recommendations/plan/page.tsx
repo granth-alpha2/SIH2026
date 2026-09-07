@@ -200,43 +200,129 @@ export default function CropPlannerPage() {
           </div>
         </section>
 
+        {/* Visual Phase Progression Icons (Sowing → Vegetative → Flowering → Maturity → Harvest) */}
+        <section className="agri-card p-6 sm:p-8 rounded-3xl border-2 space-y-4">
+          <h2 className="text-xl sm:text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+            Lifecycle Progress: {plan.cropName} ({plan.hindiName})
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+            {[
+              { num: 1, label: "Sowing", hindi: "बुवाई", icon: "🌱" },
+              { num: 2, label: "Vegetative", hindi: "विकास", icon: "🌿" },
+              { num: 3, label: "Flowering", hindi: "फूल", icon: "🌸" },
+              { num: 4, label: "Maturity", hindi: "पकना", icon: "🌾" },
+              { num: 5, label: "Harvest", hindi: "कटाई", icon: "🚜" },
+            ].map((st) => {
+              const matchedStage = plan.stages.find((s) => s.stageNumber === st.num);
+              const isActive = matchedStage?.status === "active";
+              const isDone = matchedStage?.status === "completed";
+              return (
+                <div
+                  key={st.num}
+                  className={`p-4 rounded-2xl border-2 text-center flex flex-col items-center justify-center gap-1.5 transition-all ${
+                    isActive
+                      ? "border-[var(--color-primary)] bg-[var(--color-primary-light)] ring-2 ring-[var(--color-primary)] shadow-md"
+                      : isDone
+                      ? "border-emerald-500/40 bg-emerald-500/10"
+                      : "border-[var(--border-default)] bg-[var(--bg-surface-subtle)] opacity-75"
+                  }`}
+                >
+                  <span className="text-3xl">{st.icon}</span>
+                  <strong className="text-base font-bold text-[var(--text-primary)] block">
+                    {st.label}
+                  </strong>
+                  <span className="text-sm font-semibold text-[var(--text-secondary)]">
+                    {st.hindi}
+                  </span>
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded-full mt-1 ${
+                      isActive
+                        ? "bg-[var(--color-primary)] text-white"
+                        : isDone
+                        ? "bg-emerald-600 text-white"
+                        : "bg-[var(--bg-canvas)] text-[var(--text-muted)]"
+                    }`}
+                  >
+                    {isActive ? "● Active Now" : isDone ? "✓ Done" : "Upcoming"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* PROMINENT "TODAY'S TASK" BANNER */}
+        {(() => {
+          const activeOrFirstStage = plan.stages.find((s) => s.status === "active") || plan.stages[0];
+          return (
+            <section className="p-6 sm:p-8 rounded-3xl bg-[var(--bg-surface)] border-2 border-emerald-500/50 shadow-lg space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="agri-badge agri-badge-emerald text-base font-bold">
+                  ★ Today&apos;s Priority Field Action
+                </span>
+                <span className="text-base font-bold text-[var(--text-secondary)]">
+                  Stage: {activeOrFirstStage.stageName} ({activeOrFirstStage.hindiName})
+                </span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/30 space-y-2">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="today-task-check"
+                    className="w-7 h-7 rounded-lg text-[var(--color-primary)] border-2 border-[var(--border-strong)] mt-1 cursor-pointer"
+                  />
+                  <label htmlFor="today-task-check" className="cursor-pointer space-y-1">
+                    <strong className="text-xl sm:text-2xl font-extrabold text-[var(--text-primary)] font-['Space_Grotesk'] block">
+                      {activeOrFirstStage.irrigationGuidance}
+                    </strong>
+                    <p className="text-base text-[var(--text-secondary)] font-medium">
+                      Fertilizer Action: {activeOrFirstStage.fertilizerGuidance}
+                    </p>
+                  </label>
+                </div>
+              </div>
+            </section>
+          );
+        })()}
+
         {/* Timeline Milestones Progression */}
-        <section className="space-y-4">
-          <h2 className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
-            Stage-by-Stage Agronomic Schedule ({plan.stages.length} Milestones)
+        <section className="space-y-5">
+          <h2 className="text-xl sm:text-2xl font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+            Complete Operations Schedule ({plan.stages.length} Milestones)
           </h2>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             {plan.stages.map((stage) => (
               <article
                 key={stage.stageNumber}
-                className={`agri-card p-6 space-y-4 ${
+                className={`agri-card p-6 sm:p-8 rounded-3xl space-y-5 border-2 ${
                   stage.status === "active"
-                    ? "border-[var(--color-primary)] ring-1 ring-[var(--border-accent)]"
+                    ? "border-[var(--color-primary)] ring-2 ring-[var(--color-primary-light)]"
                     : ""
                 }`}
               >
                 {/* Stage Header */}
-                <div className="flex justify-between items-start flex-wrap gap-2">
-                  <div className="flex items-start gap-3">
-                    <span className="w-8 h-8 rounded-xl bg-[var(--color-primary-light)] text-[var(--color-primary-text)] text-xs font-bold flex items-center justify-center shrink-0 border border-[var(--border-accent)]">
+                <div className="flex justify-between items-start flex-wrap gap-3">
+                  <div className="flex items-start gap-4">
+                    <span className="w-12 h-12 rounded-2xl bg-[var(--color-primary-light)] text-[var(--color-primary-text)] text-lg font-extrabold flex items-center justify-center shrink-0 border-2 border-[var(--border-accent)]">
                       #{stage.stageNumber}
                     </span>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <strong className="text-base font-bold font-['Space_Grotesk'] text-[var(--text-primary)]">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <strong className="text-xl sm:text-2xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)]">
                           {stage.stageName}
                         </strong>
-                        <span className="text-xs text-[var(--text-muted)]">({stage.hindiName})</span>
+                        <span className="text-base font-bold text-[var(--text-secondary)]">({stage.hindiName})</span>
                       </div>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                        {stage.startDate} — {stage.endDate} ({stage.durationDays} days · {stage.startDayOffset}–{stage.endDayOffset} DAS)
+                      <p className="text-base text-[var(--text-secondary)] font-medium mt-1">
+                        {stage.startDate} — {stage.endDate} ({stage.durationDays} days · {stage.startDayOffset}–{stage.endDayOffset} Days After Sowing)
                       </p>
                     </div>
                   </div>
 
                   <span
-                    className={`agri-badge ${
+                    className={`agri-badge text-sm font-bold px-4 py-1.5 ${
                       stage.status === "active"
                         ? "agri-badge-emerald"
                         : stage.status === "completed"
@@ -248,34 +334,34 @@ export default function CropPlannerPage() {
                   </span>
                 </div>
 
-                {/* Operations Guidance Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-[var(--border-subtle)] text-xs">
-                  <div className="p-3.5 rounded-xl bg-[var(--color-sky-bg)] border border-[var(--color-sky-border)] space-y-1">
-                    <strong className="text-[var(--color-sky-text)] block text-xs uppercase font-bold tracking-wider">
+                {/* Operations Guidance Grid with Large Readable Text */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t-2 border-[var(--border-subtle)] text-base">
+                  <div className="p-5 rounded-2xl bg-[var(--color-sky-bg)] border-2 border-[var(--color-sky-border)] space-y-1.5">
+                    <strong className="text-[var(--color-sky-text)] block text-sm uppercase font-bold tracking-wider">
                       🚿 Irrigation Operations
                     </strong>
-                    <p className="text-[var(--color-sky-text)] leading-relaxed">{stage.irrigationGuidance}</p>
+                    <p className="text-[var(--color-sky-text)] leading-relaxed text-base font-medium">{stage.irrigationGuidance}</p>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-[var(--color-emerald-bg)] border border-[var(--color-emerald-border)] space-y-1">
-                    <strong className="text-[var(--color-emerald-text)] block text-xs uppercase font-bold tracking-wider">
+                  <div className="p-5 rounded-2xl bg-[var(--color-emerald-bg)] border-2 border-[var(--color-emerald-border)] space-y-1.5">
+                    <strong className="text-[var(--color-emerald-text)] block text-sm uppercase font-bold tracking-wider">
                       🌾 Nutrient & Fertilizer Splits
                     </strong>
-                    <p className="text-[var(--color-emerald-text)] leading-relaxed">{stage.fertilizerGuidance}</p>
+                    <p className="text-[var(--color-emerald-text)] leading-relaxed text-base font-medium">{stage.fertilizerGuidance}</p>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-[var(--color-amber-bg)] border border-[var(--color-amber-border)] space-y-1">
-                    <strong className="text-[var(--color-amber-text)] block text-xs uppercase font-bold tracking-wider">
+                  <div className="p-5 rounded-2xl bg-[var(--color-amber-bg)] border-2 border-[var(--color-amber-border)] space-y-1.5">
+                    <strong className="text-[var(--color-amber-text)] block text-sm uppercase font-bold tracking-wider">
                       🌿 Weed Management
                     </strong>
-                    <p className="text-[var(--color-amber-text)] leading-relaxed">{stage.weedManagement}</p>
+                    <p className="text-[var(--color-amber-text)] leading-relaxed text-base font-medium">{stage.weedManagement}</p>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-[var(--color-rose-bg)] border border-[var(--color-rose-border)] space-y-1">
-                    <strong className="text-[var(--color-rose-text)] block text-xs uppercase font-bold tracking-wider">
+                  <div className="p-5 rounded-2xl bg-[var(--color-rose-bg)] border-2 border-[var(--color-rose-border)] space-y-1.5">
+                    <strong className="text-[var(--color-rose-text)] block text-sm uppercase font-bold tracking-wider">
                       🐛 Pest & Disease Surveillance
                     </strong>
-                    <p className="text-[var(--color-rose-text)] leading-relaxed">
+                    <p className="text-[var(--color-rose-text)] leading-relaxed text-base font-medium">
                       {stage.pestMonitoring} {stage.diseaseMonitoring}
                     </p>
                   </div>
