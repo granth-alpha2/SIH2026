@@ -172,7 +172,7 @@ export default function FarmsPage() {
                       </Link>
                       <Link
                         className="agri-btn-primary text-xs px-3 py-1.5"
-                        href={`/recommendations?farmId=${farm.id}&acres=${farm.areaAcres}&lat=${farm.center.lat}&lng=${farm.center.lng}&name=${encodeURIComponent(farm.name)}`}
+                        href={`/recommendations?farmId=${farm.id}&acres=${farm.areaAcres}&lat=${farm.center.lat}&lng=${farm.center.lng}&name=${encodeURIComponent(farm.name)}&risk=${encodeURIComponent(farm.preferences?.risk || "Balanced")}&water=${encodeURIComponent(farm.preferences?.water || "Medium")}`}
                       >
                         Generate Plan →
                       </Link>

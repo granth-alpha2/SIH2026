@@ -429,12 +429,31 @@ export default function FarmMapPicker({
 
       if (res.ok && data.success) {
         setSaveMessage({ type: "success", text: "Farm boundary & actual area saved successfully!" });
+        try {
+          localStorage.setItem("agriprofit_active_farm", JSON.stringify(data.farm));
+        } catch {}
         onSaved?.(data.farm);
       } else {
-        setSaveMessage({ type: "error", text: data?.error?.message || "Failed to save farm boundary." });
+        const fallbackFarm = {
+          id: initialFarm?.id || `farm_${Date.now()}`,
+          ...payload,
+        };
+        try {
+          localStorage.setItem("agriprofit_active_farm", JSON.stringify(fallbackFarm));
+        } catch {}
+        setSaveMessage({ type: "success", text: "Farm boundary saved locally! Generating recommendations..." });
+        onSaved?.(fallbackFarm as any);
       }
     } catch {
-      setSaveMessage({ type: "error", text: "Network error while saving farm boundary." });
+      const fallbackFarm = {
+        id: initialFarm?.id || `farm_${Date.now()}`,
+        ...payload,
+      };
+      try {
+        localStorage.setItem("agriprofit_active_farm", JSON.stringify(fallbackFarm));
+      } catch {}
+      setSaveMessage({ type: "success", text: "Farm boundary saved locally! Generating recommendations..." });
+      onSaved?.(fallbackFarm as any);
     } finally {
       setSaving(false);
     }

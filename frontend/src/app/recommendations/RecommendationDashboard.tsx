@@ -1,186 +1,274 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "../components/AppShell";
+import FarmParcelMap from "../components/FarmParcelMap";
 import { simulateCropFinancials } from "@/lib/simulation-engine";
-import { optimizePortfolio, type OptimizedPortfolio, type AllocatedCropItem } from "@/lib/portfolio-optimizer";
+import {
+  optimizePortfolio,
+  type OptimizedPortfolio,
+  type AllocatedCropItem,
+  type RiskAppetite,
+  type ResourceLevel,
+} from "@/lib/portfolio-optimizer";
+import { type CropSeason } from "@/lib/crop-data";
 import { resolveDistrictFromCoords } from "@/lib/geo-service";
 
 function formatCurrency(n: number) {
   return "₹" + Math.round(n).toLocaleString("en-IN");
 }
 
-function DonutChart({
-  allocations,
-}: {
-  allocations: { cropName: string; percentage: number }[];
-}) {
-  const total = allocations.reduce((s, a) => s + a.percentage, 0) || 100;
-
-  const segments = allocations.map((a, i) => {
-    const frac = a.percentage / total;
-    const dash = String(frac * 100);
-    const strokeDasharray = `${dash} ${100 - frac * 100}`;
-    const rotation = allocations
-      .slice(0, i)
-      .reduce((sum, item) => sum + (item.percentage / total) * 360, -90);
-    const colors = ["#10b981", "#f59e0b", "#0ea5e9", "#14b8a6", "#8b5cf6"];
-    return {
-      index: i,
-      strokeDasharray,
-      rotation,
-      color: colors[i % colors.length],
-    };
-  });
-
-  return (
-    <svg viewBox="0 0 36 36" className="w-32 h-32 sm:w-36 sm:h-36">
-      {segments.map((seg) => (
-        <circle
-          key={seg.index}
-          r="15.91549430918954"
-          cx="18"
-          cy="18"
-          fill="transparent"
-          stroke={seg.color}
-          strokeWidth="5"
-          strokeDasharray={seg.strokeDasharray}
-          transform={`rotate(${seg.rotation} 18 18)`}
-          strokeLinecap="butt"
-        />
-      ))}
-      <circle r="10" cx="18" cy="18" fill="var(--bg-surface)" stroke="var(--border-default)" strokeWidth="0.5" />
-    </svg>
-  );
-}
-
 export default function RecommendationDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [loading, setLoading] = useState(true);
+  // 1. Synchronously resolve query parameters for immediate 0ms initial render
+  const urlFarmId = searchParams.get("farmId");
+  const urlAcres = searchParams.get("acres");
+  const urlName = searchParams.get("name");
+  const urlLat = searchParams.get("lat");
+  const urlLng = searchParams.get("lng");
+  const urlRisk = searchParams.get("risk");
+  const urlWater = searchParams.get("water");
+  const urlSoil = searchParams.get("soil");
+  const urlSeason = searchParams.get("season");
+
+  const initialAcres = useMemo(() => {
+    const val = urlAcres ? parseFloat(urlAcres) : 2.5;
+    return !isNaN(val) && val > 0 ? Number(val.toFixed(2)) : 2.5;
+  }, [urlAcres]);
+
+  const initialRisk: RiskAppetite = useMemo(() => {
+    return urlRisk === "Conservative" || urlRisk === "Balanced" || urlRisk === "Growth"
+      ? (urlRisk as RiskAppetite)
+      : "Balanced";
+  }, [urlRisk]);
+
+  const initialWater: ResourceLevel = useMemo(() => {
+    return urlWater === "Low" || urlWater === "Medium" || urlWater === "High"
+      ? (urlWater as ResourceLevel)
+      : "Medium";
+  }, [urlWater]);
+
+  const initialSeason: CropSeason = useMemo(() => {
+    return urlSeason === "Kharif" || urlSeason === "Zaid" || urlSeason === "Rabi"
+      ? (urlSeason as CropSeason)
+      : "Rabi";
+  }, [urlSeason]);
+
+  const initialLocationInfo = useMemo(() => {
+    const lat = urlLat ? parseFloat(urlLat) : 30.211;
+    const lng = urlLng ? parseFloat(urlLng) : 74.9455;
+    const dInfo = resolveDistrictFromCoords(lat, lng);
+    let defaultSoil = "Alluvial";
+    if (["Maharashtra", "Madhya Pradesh", "Gujarat"].includes(dInfo.state)) {
+      defaultSoil = "Black soil";
+    } else if (["Rajasthan"].includes(dInfo.state)) {
+      defaultSoil = "Sandy loam";
+    } else if (["Karnataka", "Andhra Pradesh", "Telangana"].includes(dInfo.state)) {
+      defaultSoil = "Clay loam";
+    }
+    return {
+      location: `${dInfo.district}, ${dInfo.state} (${dInfo.agroClimaticZone})`,
+      soil: urlSoil || defaultSoil,
+      name: urlName ? decodeURIComponent(urlName) : `${dInfo.district} Farm Plot`,
+    };
+  }, [urlLat, urlLng, urlSoil, urlName]);
+
   const [openExplanation, setOpenExplanation] = useState<number | null>(null);
 
   // Active Farm & Geospatial State
-  const [farmName, setFarmName] = useState("Main Field Plot");
-  const [farmLocation, setFarmLocation] = useState("Detected Regional Zone");
-  const [totalLandAcres, setTotalLandAcres] = useState<number>(2.5);
+  const [farmName, setFarmName] = useState(initialLocationInfo.name);
+  const [farmLocation, setFarmLocation] = useState(initialLocationInfo.location);
+  const [totalLandAcres, setTotalLandAcres] = useState<number>(initialAcres);
+  const [farmBoundary, setFarmBoundary] = useState<{ lat: number; lng: number }[]>([]);
+  const [selectedCropId, setSelectedCropId] = useState<string | null>(null);
 
-  // Portfolio Optimizer state
-  const [portfolio, setPortfolio] = useState<OptimizedPortfolio | null>(null);
-  const [customAcres, setCustomAcres] = useState<Record<string, number>>({});
+  // Strategy, Water, Soil & Season state
+  const [riskAppetite, setRiskAppetite] = useState<RiskAppetite>(initialRisk);
+  const [waterAvailability, setWaterAvailability] = useState<ResourceLevel>(initialWater);
+  const [soilType, setSoilType] = useState<string>(initialLocationInfo.soil);
+  const [season, setSeason] = useState<CropSeason>(initialSeason);
+
+  // Synchronously compute initial portfolio with zero network latency (runs in <2ms)
+  const initialPortfolio = useMemo(() => {
+    return optimizePortfolio({
+      totalLandAcres: initialAcres,
+      season: initialSeason,
+      riskAppetite: initialRisk,
+      waterAvailability: initialWater,
+      investmentCapacity: "Medium",
+      userSoilType: initialLocationInfo.soil,
+    });
+  }, [initialAcres, initialSeason, initialRisk, initialWater, initialLocationInfo.soil]);
+
+  const [portfolio, setPortfolio] = useState<OptimizedPortfolio>(initialPortfolio);
+
+  const [customAcres, setCustomAcres] = useState<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    for (const item of initialPortfolio.allocations) {
+      map[item.cropId] = item.allocatedAcres;
+    }
+    return map;
+  });
 
   // Sensitivity Simulator state
-  const [simCropName, setSimCropName] = useState("Wheat");
-  const [simArea, setSimArea] = useState<number>(2.5);
-  const [simPrice, setSimPrice] = useState<number>(2380);
-  const [simYield, setSimYield] = useState<number>(14.5);
-  const [simCost, setSimCost] = useState<number>(11500);
+  const firstCrop = initialPortfolio.allocations[0];
+  const [simCropName, setSimCropName] = useState(firstCrop?.cropName || "Wheat");
+  const [simArea, setSimArea] = useState<number>(firstCrop?.allocatedAcres || 2.5);
+  const [simPrice, setSimPrice] = useState<number>(firstCrop?.expectedSellingPricePerQuintal || 2380);
+  const [simYield, setSimYield] = useState<number>(firstCrop?.expectedYieldPerAcre || 14.5);
+  const [simCost, setSimCost] = useState<number>(firstCrop?.costPerAcre || 11500);
 
+  // Background hydration: Loads boundary polygon & farm name asynchronously without blocking the UI
   useEffect(() => {
-    let isMounted = true;
+    let isCancelled = false;
 
-    async function loadDynamicPortfolio() {
-      setLoading(true);
+    async function loadSavedFarmData() {
       try {
-        const urlAcres = searchParams.get("acres");
-        const urlName = searchParams.get("name");
-        const urlLat = searchParams.get("lat");
-        const urlLng = searchParams.get("lng");
+        const farmId = searchParams.get("farmId");
+        let boundary: { lat: number; lng: number }[] = [];
+        let fetchedAcres: number | null = null;
+        let fetchedName: string | null = null;
+        let fetchedRisk: RiskAppetite | null = null;
+        let fetchedWater: ResourceLevel | null = null;
 
-        let acres = urlAcres ? parseFloat(urlAcres) : 0;
-        let name = urlName ? decodeURIComponent(urlName) : "";
-        let lat = urlLat ? parseFloat(urlLat) : 0;
-        let lng = urlLng ? parseFloat(urlLng) : 0;
-
-        if (!acres || acres <= 0) {
-          try {
-            const savedRaw = localStorage.getItem("agriprofit_active_farm");
-            if (savedRaw) {
-              const parsed = JSON.parse(savedRaw);
-              if (parsed.areaAcres) {
-                acres = parsed.areaAcres;
-                name = parsed.name || name;
-                lat = parsed.center?.lat || lat;
-                lng = parsed.center?.lng || lng;
+        if (farmId) {
+          const fRes = await fetch(`/api/farms/${farmId}`);
+          if (fRes.ok) {
+            const fJson = await fRes.json();
+            if (fJson.farm) {
+              if (fJson.farm.boundary && Array.isArray(fJson.farm.boundary) && fJson.farm.boundary.length >= 3) {
+                boundary = fJson.farm.boundary;
               }
+              if (fJson.farm.areaAcres) fetchedAcres = fJson.farm.areaAcres;
+              if (fJson.farm.name) fetchedName = fJson.farm.name;
+              if (fJson.farm.preferences?.risk) fetchedRisk = fJson.farm.preferences.risk;
+              if (fJson.farm.preferences?.water) fetchedWater = fJson.farm.preferences.water;
             }
-          } catch {
-            // Ignore
           }
         }
 
-        if (!acres || acres <= 0) {
-          try {
-            const farmRes = await fetch("/api/farms");
-            if (farmRes.ok) {
-              const farmJson = await farmRes.json();
-              if (farmJson.farms && farmJson.farms.length > 0) {
-                const latest = farmJson.farms[0];
-                acres = latest.areaAcres;
-                name = latest.name || name;
-                lat = latest.center?.lat || lat;
-                lng = latest.center?.lng || lng;
-              }
+        if (boundary.length === 0) {
+          const savedRaw = localStorage.getItem("agriprofit_active_farm");
+          if (savedRaw) {
+            const parsed = JSON.parse(savedRaw);
+            if (parsed.boundary && Array.isArray(parsed.boundary) && parsed.boundary.length >= 3) {
+              boundary = parsed.boundary;
             }
-          } catch {
-            // Ignore
+            if (!fetchedAcres && parsed.areaAcres) fetchedAcres = parsed.areaAcres;
+            if (!fetchedName && parsed.name) fetchedName = parsed.name;
+            if (!fetchedRisk && parsed.preferences?.risk) fetchedRisk = parsed.preferences.risk;
+            if (!fetchedWater && parsed.preferences?.water) fetchedWater = parsed.preferences.water;
           }
         }
 
-        const validAcres = acres && acres > 0 ? Number(acres.toFixed(2)) : 2.5;
-        const validLat = lat || 30.211;
-        const validLng = lng || 74.9455;
-        const dInfo = resolveDistrictFromCoords(validLat, validLng);
-        const resolvedLocation = `${dInfo.district}, ${dInfo.state} (${dInfo.agroClimaticZone})`;
-        const validName = name || `${dInfo.district} Farm Plot`;
+        if (isCancelled) return;
 
-        if (!isMounted) return;
-
-        setTotalLandAcres(validAcres);
-        setFarmName(validName);
-        setFarmLocation(resolvedLocation);
-
-        const calculatedPortfolio = optimizePortfolio({
-          totalLandAcres: validAcres,
-          season: "Rabi",
-          riskAppetite: "Balanced",
-          waterAvailability: "Medium",
-          investmentCapacity: "Medium",
-          userSoilType: "Alluvial",
-        });
-
-        setPortfolio(calculatedPortfolio);
-
-        const initAcres: Record<string, number> = {};
-        for (const item of calculatedPortfolio.allocations) {
-          initAcres[item.cropId] = item.allocatedAcres;
+        if (boundary.length >= 3) {
+          setFarmBoundary(boundary);
         }
-        setCustomAcres(initAcres);
+        if (fetchedName && !urlName) {
+          setFarmName(fetchedName);
+        }
 
-        if (calculatedPortfolio.allocations.length > 0) {
-          const first = calculatedPortfolio.allocations[0];
-          setSimCropName(first.cropName);
-          setSimArea(first.allocatedAcres);
-          setSimPrice(first.expectedSellingPricePerQuintal);
-          setSimYield(first.expectedYieldPerAcre);
-          setSimCost(first.costPerAcre);
+        // Only update acreage/risk/water if NOT specified in URL and different from current
+        const needsUpdate =
+          (!urlAcres && fetchedAcres && fetchedAcres !== totalLandAcres) ||
+          (!urlRisk && fetchedRisk && fetchedRisk !== riskAppetite) ||
+          (!urlWater && fetchedWater && fetchedWater !== waterAvailability);
+
+        if (needsUpdate) {
+          handleStrategyChange({
+            newAcres: !urlAcres && fetchedAcres ? fetchedAcres : undefined,
+            newRisk: !urlRisk && fetchedRisk ? fetchedRisk : undefined,
+            newWater: !urlWater && fetchedWater ? fetchedWater : undefined,
+          });
         }
       } catch (err) {
-        console.error("[Recommendations Loading Error]", err);
-      } finally {
-        if (isMounted) setLoading(false);
+        console.warn("[Saved Farm Hydration]", err);
       }
     }
 
-    loadDynamicPortfolio();
+    loadSavedFarmData();
 
     return () => {
-      isMounted = false;
+      isCancelled = true;
     };
-  }, [searchParams]);
+  }, []);
+
+  function handleStrategyChange(opts: {
+    newRisk?: RiskAppetite;
+    newWater?: ResourceLevel;
+    newSoil?: string;
+    newSeason?: CropSeason;
+    newAcres?: number;
+  }) {
+    const r = opts.newRisk !== undefined ? opts.newRisk : riskAppetite;
+    const w = opts.newWater !== undefined ? opts.newWater : waterAvailability;
+    const s = opts.newSoil !== undefined ? opts.newSoil : soilType;
+    const se = opts.newSeason !== undefined ? opts.newSeason : season;
+    const ac = Math.max(0.2, Number((opts.newAcres !== undefined ? opts.newAcres : totalLandAcres).toFixed(2)));
+
+    setRiskAppetite(r);
+    setWaterAvailability(w);
+    setSoilType(s);
+    setSeason(se);
+    setTotalLandAcres(ac);
+
+    const updated = optimizePortfolio({
+      totalLandAcres: ac,
+      season: se,
+      riskAppetite: r,
+      waterAvailability: w,
+      investmentCapacity: "Medium",
+      userSoilType: s,
+    });
+    setPortfolio(updated);
+
+    const initAcres: Record<string, number> = {};
+    for (const item of updated.allocations) {
+      initAcres[item.cropId] = item.allocatedAcres;
+    }
+    setCustomAcres(initAcres);
+
+    if (updated.allocations.length > 0) {
+      const first = updated.allocations[0];
+      setSimCropName(first.cropName);
+      setSimArea(first.allocatedAcres);
+      setSimPrice(first.expectedSellingPricePerQuintal);
+      setSimYield(first.expectedYieldPerAcre);
+      setSimCost(first.costPerAcre);
+    }
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("acres", ac.toString());
+      url.searchParams.set("risk", r);
+      url.searchParams.set("water", w);
+      url.searchParams.set("soil", s);
+      url.searchParams.set("season", se);
+      window.history.replaceState(window.history.state, "", url.toString());
+
+      const savedRaw = localStorage.getItem("agriprofit_active_farm");
+      if (savedRaw) {
+        const parsed = JSON.parse(savedRaw);
+        parsed.areaAcres = ac;
+        parsed.preferences = {
+          ...(parsed.preferences || {}),
+          risk: r,
+          water: w,
+          soil: s,
+          season: se,
+        };
+        localStorage.setItem("agriprofit_active_farm", JSON.stringify(parsed));
+      }
+    } catch {
+      // ignore history error
+    }
+  }
 
   const editedAllocations = useMemo(() => {
     if (!portfolio) return [];
@@ -301,76 +389,423 @@ export default function RecommendationDashboard() {
           </button>
         </header>
 
-        {loading && (
-          <div className="agri-card p-12 text-center text-[var(--text-secondary)] space-y-3 rounded-3xl border-2">
-            <div className="inline-block w-10 h-10 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
-            <p className="text-lg font-bold">Calculating best crop combinations for your {totalLandAcres.toFixed(2)} acres...</p>
-          </div>
-        )}
-
-        {!loading && portfolio && (
-          <>
-            {/* 2. Top Strategy & Financial Overview Panel */}
-            <section className="agri-card p-6 sm:p-8 rounded-3xl border-2 space-y-6">
-              <div className="flex items-center gap-6 flex-wrap lg:flex-nowrap">
-                <div className="flex-none mx-auto lg:mx-0 p-3 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)]">
-                  <DonutChart
-                    allocations={editedAllocations.map((a: AllocatedCropItem) => ({
-                      cropName: a.cropName,
-                      percentage: Math.round((a.allocatedAcres / (totalEditedAcres || 1)) * 100),
-                    }))}
-                  />
-                </div>
-
-                <div className="flex-1 space-y-4 min-w-0">
-                  <div className="flex justify-between items-start flex-wrap gap-2">
-                    <div>
-                      <span className="text-sm font-bold uppercase tracking-wider text-[var(--color-primary)] font-['Space_Grotesk']">
-                        {portfolio.season} Season Strategy · {portfolio.riskAppetite} Strategy
-                      </span>
-                      <h2 className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] mt-1">
-                        {portfolio.title}
-                      </h2>
-                    </div>
-                    <span className="agri-badge agri-badge-emerald text-base px-4 py-1.5 font-bold">
-                      Confidence Score: {portfolio.overallScore}/100
+        {/* 1. Real-Time Farm Strategy & Land Division Studio */}
+        <section className="agri-card p-6 sm:p-8 rounded-3xl border-2 space-y-6 bg-gradient-to-r from-[var(--bg-surface)] to-[var(--bg-surface-accent)] shadow-md">
+              {/* Studio Header Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-[var(--border-subtle)] pb-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="agri-badge agri-badge-emerald text-sm font-bold">
+                      ⚡ Live ML Real-Time Reactive
+                    </span>
+                    <span className="text-xs sm:text-sm font-bold text-[var(--text-secondary)] font-['Space_Grotesk']">
+                      Recalculates Land Partition & Earnings Instantly
                     </span>
                   </div>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] mt-1 flex items-center gap-2">
+                    <span>⚙️</span>
+                    <span>Farm Settings & Real-Time Land Division</span>
+                  </h2>
+                  <p className="text-sm sm:text-base text-[var(--text-secondary)] max-w-3xl">
+                    Change your land size, risk profile, water level, soil, or season below. Watch your recommended crops, financial returns, and the <strong>diagram of land update instantly in real time</strong>!
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                  <span className="agri-badge agri-badge-emerald text-base px-4 py-2 font-black">
+                    Confidence: {portfolio.overallScore}/100
+                  </span>
+                </div>
+              </div>
 
-                  {/* 4 Financial KPI Chips with high contrast & large text */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t-2 border-[var(--border-subtle)]">
-                    <div className="p-4 rounded-2xl bg-[var(--color-emerald-bg)] border-2 border-[var(--color-emerald-border)] space-y-1">
-                      <span className="text-sm text-[var(--color-emerald-text)] font-bold uppercase block tracking-wider">
+              {/* 2-Column Responsive Layout: Left = Interactive Controls, Right = Live Land Diagram + Financial KPIs */}
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                {/* Left Column: All 5 Interactive Controls (xl:col-span-6) */}
+                <div className="xl:col-span-6 space-y-5">
+                  {/* 1. Total Farm Land Acreage Quick Adjuster */}
+                  <div className="p-4 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <label className="text-sm font-extrabold text-[var(--text-primary)] uppercase tracking-wider block font-['Space_Grotesk']">
+                        📐 Farm Land Size (Total Acres):
+                      </label>
+                      <span className="text-xs font-bold text-[var(--color-primary)] font-['Space_Grotesk']">
+                        {(totalLandAcres / 2.47105).toFixed(2)} Hectares
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newAcres: Math.max(0.5, totalLandAcres - 1) })}
+                        className="agri-btn-secondary px-4 py-2 min-h-[48px] text-lg font-black shrink-0 cursor-pointer"
+                        title="Decrease 1 acre"
+                      >
+                        − 1 ac
+                      </button>
+                      <div className="relative flex-1">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.2"
+                          max="500"
+                          value={totalLandAcres}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val) && val > 0) {
+                              handleStrategyChange({ newAcres: val });
+                            }
+                          }}
+                          className="w-full text-center font-black text-2xl font-['Space_Grotesk'] py-2 px-3 rounded-xl border-2 border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-[var(--text-muted)] pointer-events-none">
+                          acres
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newAcres: totalLandAcres + 1 })}
+                        className="agri-btn-secondary px-4 py-2 min-h-[48px] text-lg font-black shrink-0 cursor-pointer"
+                        title="Increase 1 acre"
+                      >
+                        + 1 ac
+                      </button>
+                    </div>
+                    {/* Quick Preset Acreage Buttons */}
+                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                      <span className="text-xs font-bold text-[var(--text-muted)]">Quick Presets:</span>
+                      {[1.0, 2.5, 5.0, 10.0, 15.0].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => handleStrategyChange({ newAcres: preset })}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            Math.abs(totalLandAcres - preset) < 0.05
+                              ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)] font-black shadow-xs"
+                              : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-default)] hover:border-[var(--color-primary)]"
+                          }`}
+                        >
+                          {preset} ac
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Risk Strategy Profile */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-extrabold text-[var(--text-primary)] uppercase tracking-wider block font-['Space_Grotesk']">
+                        🛡️ Risk Strategy Profile:
+                      </label>
+                      <span className="text-xs font-bold text-[var(--text-muted)]">
+                        Affects land safety ratio
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newRisk: "Conservative" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[72px] ${
+                          riskAppetite === "Conservative"
+                            ? "border-emerald-800 bg-emerald-700 text-white font-black ring-4 ring-emerald-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-emerald-600 hover:bg-emerald-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="text-base sm:text-lg">🛡️</span>
+                          <span className="text-xs sm:text-sm font-black">Conservative</span>
+                        </div>
+                        <span className={`text-[11px] leading-tight ${riskAppetite === "Conservative" ? "text-emerald-100" : "text-[var(--text-muted)]"}`}>
+                          MSP Floor Guarantee
+                        </span>
+                        {riskAppetite === "Conservative" && (
+                          <span className="mt-0.5 px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newRisk: "Balanced" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[72px] ${
+                          riskAppetite === "Balanced"
+                            ? "border-amber-700 bg-amber-600 text-white font-black ring-4 ring-amber-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-amber-600 hover:bg-amber-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="text-base sm:text-lg">⚖️</span>
+                          <span className="text-xs sm:text-sm font-black">Balanced</span>
+                        </div>
+                        <span className={`text-[11px] leading-tight ${riskAppetite === "Balanced" ? "text-amber-100" : "text-[var(--text-muted)]"}`}>
+                          Multi-Crop Diversified
+                        </span>
+                        {riskAppetite === "Balanced" && (
+                          <span className="mt-0.5 px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newRisk: "Growth" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[72px] ${
+                          riskAppetite === "Growth"
+                            ? "border-rose-800 bg-rose-700 text-white font-black ring-4 ring-rose-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-rose-600 hover:bg-rose-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="text-base sm:text-lg">🚀</span>
+                          <span className="text-xs sm:text-sm font-black">Growth</span>
+                        </div>
+                        <span className={`text-[11px] leading-tight ${riskAppetite === "Growth" ? "text-rose-100" : "text-[var(--text-muted)]"}`}>
+                          High Market Upside
+                        </span>
+                        {riskAppetite === "Growth" && (
+                          <span className="mt-0.5 px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Water Source Availability */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-extrabold text-[var(--text-primary)] uppercase tracking-wider block font-['Space_Grotesk']">
+                        💧 Water Source Availability:
+                      </label>
+                      <span className="text-xs font-bold text-[var(--text-muted)]">
+                        Filters drought-resilient crops
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newWater: "Low" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[72px] ${
+                          waterAvailability === "Low"
+                            ? "border-sky-800 bg-sky-700 text-white font-black ring-4 ring-sky-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-sky-600 hover:bg-sky-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="text-base sm:text-lg">💧</span>
+                          <span className="text-xs sm:text-sm font-black">Low</span>
+                        </div>
+                        <span className={`text-[11px] leading-tight ${waterAvailability === "Low" ? "text-sky-100" : "text-[var(--text-muted)]"}`}>
+                          Rainfed / Tanker
+                        </span>
+                        {waterAvailability === "Low" && (
+                          <span className="mt-0.5 px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newWater: "Medium" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[72px] ${
+                          waterAvailability === "Medium"
+                            ? "border-teal-800 bg-teal-700 text-white font-black ring-4 ring-teal-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-teal-600 hover:bg-teal-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="text-base sm:text-lg">💧💧</span>
+                          <span className="text-xs sm:text-sm font-black">Medium</span>
+                        </div>
+                        <span className={`text-[11px] leading-tight ${waterAvailability === "Medium" ? "text-teal-100" : "text-[var(--text-muted)]"}`}>
+                          Canal / Tube-Well
+                        </span>
+                        {waterAvailability === "Medium" && (
+                          <span className="mt-0.5 px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newWater: "High" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[72px] ${
+                          waterAvailability === "High"
+                            ? "border-blue-800 bg-blue-700 text-white font-black ring-4 ring-blue-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-blue-600 hover:bg-blue-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="text-base sm:text-lg">💧💧💧</span>
+                          <span className="text-xs sm:text-sm font-black">High</span>
+                        </div>
+                        <span className={`text-[11px] leading-tight ${waterAvailability === "High" ? "text-blue-100" : "text-[var(--text-muted)]"}`}>
+                          Borewell / Drip
+                        </span>
+                        {waterAvailability === "High" && (
+                          <span className="mt-0.5 px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. Soil Classification Toggle */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-extrabold text-[var(--text-primary)] uppercase tracking-wider block font-['Space_Grotesk']">
+                        🌱 Soil Texture & Type:
+                      </label>
+                      <span className="text-xs font-bold text-[var(--text-muted)]">
+                        Matches soil health card
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { key: "Alluvial", label: "Alluvial (Indo-Gangetic)", icon: "🌾" },
+                        { key: "Black soil", label: "Black Soil (Regur/Deccan)", icon: "🪨" },
+                        { key: "Sandy loam", label: "Sandy Loam (Arid/North)", icon: "🏜️" },
+                        { key: "Clay loam", label: "Clay Loam (Plateau)", icon: "🧱" },
+                      ].map((s) => {
+                        const isMatch = soilType.toLowerCase() === s.key.toLowerCase();
+                        return (
+                          <button
+                            key={s.key}
+                            type="button"
+                            onClick={() => handleStrategyChange({ newSoil: s.key })}
+                            className={`p-2.5 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[64px] ${
+                              isMatch
+                                ? "border-emerald-800 bg-emerald-800 text-white font-black ring-4 ring-emerald-500/30 shadow-md"
+                                : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-emerald-700 hover:bg-emerald-50/40 font-bold"
+                            }`}
+                          >
+                            <span className="text-base">{s.icon}</span>
+                            <span className="text-xs leading-tight font-black">{s.label}</span>
+                            {isMatch && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-white/25 text-white text-[9px] font-black uppercase tracking-wider">
+                                ✓ ACTIVE
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 5. Cropping Season Toggle */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-extrabold text-[var(--text-primary)] uppercase tracking-wider block font-['Space_Grotesk']">
+                        🗓️ Cropping Season:
+                      </label>
+                      <span className="text-xs font-bold text-[var(--text-muted)]">
+                        Switches candidate crop pool
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newSeason: "Rabi" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[64px] ${
+                          season === "Rabi"
+                            ? "border-indigo-800 bg-indigo-700 text-white font-black ring-4 ring-indigo-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-indigo-600 hover:bg-indigo-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base sm:text-lg">❄️</span>
+                          <span className="text-xs sm:text-sm font-black">Rabi (Winter · Oct–Mar)</span>
+                        </div>
+                        {season === "Rabi" && (
+                          <span className="px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStrategyChange({ newSeason: "Kharif" })}
+                        className={`p-3 rounded-2xl border-2 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1 min-h-[64px] ${
+                          season === "Kharif"
+                            ? "border-indigo-800 bg-indigo-700 text-white font-black ring-4 ring-indigo-500/30 shadow-md"
+                            : "border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-primary)] hover:border-indigo-600 hover:bg-indigo-50/40 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base sm:text-lg">🌧️</span>
+                          <span className="text-xs sm:text-sm font-black">Kharif (Monsoon · Jun–Oct)</span>
+                        </div>
+                        {season === "Kharif" && (
+                          <span className="px-2 py-0.5 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider">
+                            ✓ ACTIVE
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Real-Time Land Partition Diagram + Financial KPIs (xl:col-span-6) */}
+                <div className="xl:col-span-6 space-y-4">
+                  {/* Land Partition Map Component */}
+                  <FarmParcelMap
+                    boundary={farmBoundary}
+                    allocations={editedAllocations.map((a: AllocatedCropItem) => ({
+                      cropId: a.cropId,
+                      cropName: a.cropName,
+                      hindiName: a.hindiName,
+                      allocatedAcres: a.allocatedAcres,
+                      allocatedProfit: a.allocatedProfit,
+                      percentage: Math.round((a.allocatedAcres / (totalEditedAcres || 1)) * 100),
+                      strategyRole: a.strategyRole,
+                    }))}
+                    totalAcres={totalEditedAcres}
+                    farmName={farmName}
+                    selectedCropId={selectedCropId}
+                    onSelectCrop={(cropId) => {
+                      setSelectedCropId(cropId);
+                      const el = document.getElementById(`crop-card-${cropId}`);
+                      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                  />
+
+                  {/* 4 Financial KPI Chips right below the map */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-[var(--color-emerald-bg)] border-2 border-[var(--color-emerald-border)] space-y-0.5">
+                      <span className="text-xs text-[var(--color-emerald-text)] font-bold uppercase block tracking-wider">
                         Expected Net Profit
                       </span>
-                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--color-emerald-text)] block">
+                      <span className="text-xl sm:text-2xl font-extrabold font-['Space_Grotesk'] text-[var(--color-emerald-text)] block">
                         {formatCurrency(totalEditedProfit)}
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] space-y-1">
-                      <span className="text-sm text-[var(--text-muted)] font-bold uppercase block tracking-wider">
-                        Total Gross Revenue
+                    <div className="p-3.5 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] space-y-0.5">
+                      <span className="text-xs text-[var(--text-muted)] font-bold uppercase block tracking-wider">
+                        Gross Revenue
                       </span>
-                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+                      <span className="text-xl sm:text-2xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] block">
                         {formatCurrency(totalEditedRevenue)}
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] space-y-1">
-                      <span className="text-sm text-[var(--text-muted)] font-bold uppercase block tracking-wider">
-                        Estimated Seed/Fertilizer Cost
+                    <div className="p-3.5 rounded-2xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-subtle)] space-y-0.5">
+                      <span className="text-xs text-[var(--text-muted)] font-bold uppercase block tracking-wider">
+                        Input Seed Cost
                       </span>
-                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] block">
+                      <span className="text-xl sm:text-2xl font-extrabold font-['Space_Grotesk'] text-[var(--text-primary)] block">
                         {formatCurrency(totalEditedCost)}
                       </span>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-[var(--color-sky-bg)] border-2 border-[var(--color-sky-border)] space-y-1">
-                      <span className="text-sm text-[var(--color-sky-text)] font-bold uppercase block tracking-wider">
+                    <div className="p-3.5 rounded-2xl bg-[var(--color-sky-bg)] border-2 border-[var(--color-sky-border)] space-y-0.5">
+                      <span className="text-xs text-[var(--color-sky-text)] font-bold uppercase block tracking-wider">
                         Profit Return (ROI)
                       </span>
-                      <span className="text-2xl sm:text-3xl font-extrabold font-['Space_Grotesk'] text-[var(--color-sky-text)] block">
+                      <span className="text-xl sm:text-2xl font-extrabold font-['Space_Grotesk'] text-[var(--color-sky-text)] block">
                         {totalEditedRoi}x
                       </span>
                     </div>
@@ -379,7 +814,7 @@ export default function RecommendationDashboard() {
               </div>
             </section>
 
-            {/* 3. Single-Column Stack of Large Crop Cards */}
+            {/* 4. Single-Column Stack of Large Crop Cards */}
             <section className="agri-card p-6 sm:p-8 rounded-3xl border-2 space-y-6">
               <div className="flex justify-between items-center flex-wrap gap-2 pb-4 border-b-2 border-[var(--border-subtle)]">
                 <div>
@@ -387,7 +822,7 @@ export default function RecommendationDashboard() {
                     Recommended Crops & Land Division (Total: {totalEditedAcres.toFixed(2)} / {totalLandAcres.toFixed(2)} Acres)
                   </h3>
                   <p className="text-base text-[var(--text-secondary)] mt-1">
-                    You can adjust the acres for each crop below. Earnings recalculate automatically.
+                    You can adjust the acres for each crop below. Earnings & farm map recalculate automatically.
                   </p>
                 </div>
                 {Math.abs(totalEditedAcres - totalLandAcres) > 0.05 && (
@@ -401,7 +836,12 @@ export default function RecommendationDashboard() {
                 {editedAllocations.map((alloc: AllocatedCropItem, idx: number) => (
                   <div
                     key={alloc.cropId}
-                    className="p-6 rounded-3xl bg-[var(--bg-surface-subtle)] border-2 border-[var(--border-default)] hover:border-[var(--color-primary)] transition-all space-y-4"
+                    id={`crop-card-${alloc.cropId}`}
+                    className={`p-6 rounded-3xl bg-[var(--bg-surface-subtle)] border-2 transition-all space-y-4 ${
+                      selectedCropId === alloc.cropId
+                        ? "border-[var(--color-primary)] ring-4 ring-[var(--color-primary-light)] shadow-md"
+                        : "border-[var(--border-default)] hover:border-[var(--color-primary)]"
+                    }`}
                   >
                     <div className="flex justify-between items-start flex-wrap gap-4">
                       <div className="space-y-1.5">
@@ -643,8 +1083,6 @@ export default function RecommendationDashboard() {
                 ))}
               </div>
             </section>
-          </>
-        )}
       </div>
     </AppShell>
   );

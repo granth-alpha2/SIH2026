@@ -65,8 +65,12 @@ export default function NewFarmPage() {
         <div className="agri-card p-6">
           <FarmMapPicker
             onAreaChange={() => {}}
-            onSaved={() => {
-              router.push("/farms");
+            onSaved={(savedFarm) => {
+              const risk = savedFarm.preferences?.risk || "Balanced";
+              const water = savedFarm.preferences?.water || "Medium";
+              router.push(
+                `/recommendations?farmId=${savedFarm.id}&acres=${savedFarm.areaAcres}&lat=${savedFarm.center.lat}&lng=${savedFarm.center.lng}&name=${encodeURIComponent(savedFarm.name)}&risk=${encodeURIComponent(risk)}&water=${encodeURIComponent(water)}`
+              );
               router.refresh();
             }}
           />
