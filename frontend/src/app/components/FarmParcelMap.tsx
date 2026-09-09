@@ -365,11 +365,9 @@ export default function FarmParcelMap({
   const [mapMode, setMapMode] = useState<"tactical" | "satellite">("tactical");
   const [hoveredCropId, setHoveredCropId] = useState<string | null>(null);
 
-  // 1. Normalize Boundary into [0, 500] x [0, 320] SVG Canvas Coordinates
-  const basePolygon: [number, number][] = useMemo(() => {
-    const canvasW = 500;
-    const canvasH = 320;
-    const padding = 35;
+  // 1. Dynamically compute physical aspect ratio, canvas dimensions & normalize Boundary
+  const { canvasW, canvasH, basePolygon } = useMemo(() => {
+    const padding = 18;
 
     if (boundary && boundary.length >= 3) {
       // Find bounding box in Lat/Lng space
@@ -385,36 +383,60 @@ export default function FarmParcelMap({
         if (p.lng > maxLng) maxLng = p.lng;
       });
 
-      const dLat = maxLat - minLat || 0.001;
-      const dLng = maxLng - minLng || 0.001;
+      const dLat = Math.max(0.00001, maxLat - minLat);
+      const dLng = Math.max(0.00001, maxLng - minLng);
 
       // Latitude cosine correction for proper geographical aspect ratio
       const midLatRad = ((minLat + maxLat) / 2) * (Math.PI / 180);
       const aspectCorrection = Math.cos(midLatRad);
-      const scaledDLng = dLng * aspectCorrection;
+      const scaledDLng = Math.max(0.00001, dLng * aspectCorrection);
 
-      const availW = canvasW - padding * 2;
-      const availH = canvasH - padding * 2;
+      // Real physical aspect ratio (width / height)
+      const rawAspect = scaledDLng / dLat;
+      // Clamp between 0.5 (tall portrait) and 2.5 (wide landscape) to guarantee beautiful framing
+      const clampedAspect = Math.max(0.5, Math.min(2.5, rawAspect));
 
+      let cW: number;
+      let cH: number;
+      let availW: number;
+      let availH: number;
+
+      if (clampedAspect >= 1.0) {
+        cW = 500;
+        availW = cW - padding * 2;
+        availH = availW / clampedAspect;
+        cH = Math.max(220, Math.round(availH + padding * 2));
+      } else {
+        cH = 460;
+        availH = cH - padding * 2;
+        availW = availH * clampedAspect;
+        cW = Math.max(240, Math.round(availW + padding * 2));
+      }
+
+      // Compute scale so polygon expands to fill the entire available canvas
       const scale = Math.min(availW / scaledDLng, availH / dLat);
 
       const projected = boundary.map((p) => {
-        const x = canvasW / 2 + (p.lng - (minLng + maxLng) / 2) * aspectCorrection * scale;
+        const x = cW / 2 + (p.lng - (minLng + maxLng) / 2) * aspectCorrection * scale;
         // In SVG, Y is inverted (higher latitude = smaller Y)
-        const y = canvasH / 2 - (p.lat - (minLat + maxLat) / 2) * scale;
+        const y = cH / 2 - (p.lat - (minLat + maxLat) / 2) * scale;
         return [Number(x.toFixed(2)), Number(y.toFixed(2))] as [number, number];
       });
 
-      return projected;
+      return { canvasW: cW, canvasH: cH, basePolygon: projected };
     }
 
     // Default authentic agricultural plot shape (trapezoidal field parcel)
-    return [
-      [50, 60],
-      [450, 45],
-      [465, 275],
-      [35, 285],
-    ];
+    return {
+      canvasW: 500,
+      canvasH: 320,
+      basePolygon: [
+        [24, 30],
+        [476, 22],
+        [482, 298],
+        [18, 292],
+      ] as [number, number][],
+    };
   }, [boundary]);
 
   // 2. Compute Partition Slices for each Crop based on its Percentage
@@ -499,7 +521,7 @@ export default function FarmParcelMap({
               🗺️ Farm Plot Partition Map
             </span>
             <span className="text-xs sm:text-sm font-bold text-[var(--text-secondary)] font-['Space_Grotesk']">
-              {totalAcres.toFixed(2)} Acres Divided
+              {allocations.length} Crop Zones · {totalAcres.toFixed(2)} Acres Divided
             </span>
           </div>
           <h3 className="text-xl sm:text-2xl font-extrabold text-[var(--text-primary)] font-['Space_Grotesk'] mt-1">
@@ -538,7 +560,14 @@ export default function FarmParcelMap({
       </div>
 
       {/* Interactive SVG Farm Plot Graphic */}
-      <div className="relative w-full aspect-[500/320] max-h-[460px] rounded-3xl overflow-hidden border-2 border-[var(--border-strong)] bg-[#eef2e6] dark:bg-[#121913] shadow-inner select-none">
+      <div
+        className="relative w-full mx-auto rounded-3xl overflow-hidden border-2 border-[var(--border-strong)] bg-[#eef2e6] dark:bg-[#121913] shadow-inner select-none transition-all duration-300"
+        style={{
+          aspectRatio: `${canvasW} / ${canvasH}`,
+          maxWidth: `min(100%, calc(480px * ${canvasW} / ${canvasH}))`,
+          maxHeight: "480px",
+        }}
+      >
         {/* Satellite Background Layer (when satellite mode is active) */}
         {mapMode === "satellite" && (
           <div
@@ -550,7 +579,7 @@ export default function FarmParcelMap({
           />
         )}
 
-        <svg viewBox="0 0 500 320" className="w-full h-full">
+        <svg viewBox={`0 0 ${canvasW} ${canvasH}`} className="w-full h-full block">
           <defs>
             {/* Furrow / Field Plow Line Patterns */}
             <pattern id="plow-pattern-wheat" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
@@ -573,7 +602,7 @@ export default function FarmParcelMap({
           </defs>
 
           {/* Exterior Buffer Field (Surrounding Context) */}
-          <rect width="500" height="320" fill="transparent" />
+          <rect width={canvasW} height={canvasH} fill="transparent" />
 
           {/* Outer Boundary Shadow / Halo */}
           <polygon
@@ -649,21 +678,30 @@ export default function FarmParcelMap({
             const isSelected = selectedCropId === parcel.crop.cropId;
             const isHovered = hoveredCropId === parcel.crop.cropId;
 
-            // Stagger X or Y slightly so badges in narrow or horizontal slices never collide
-            let cx = rawCx;
-            let cy = rawCy;
-            if (sliceAxis === "horizontal") {
-              const offset = idx % 2 === 0 ? -34 : 34;
-              cx = Math.max(70, Math.min(430, rawCx + offset));
-            } else {
-              const offset = idx % 2 === 0 ? -22 : 22;
-              cy = Math.max(50, Math.min(270, rawCy + offset));
-            }
-
             const badgeW = 98;
             const badgeH = 28;
-            const badgeX = cx - badgeW / 2;
-            const badgeY = cy - badgeH / 2;
+            const halfW = badgeW / 2;
+            const halfH = badgeH / 2;
+
+            let cx = rawCx;
+            let cy = rawCy;
+            if (parcels.length > 1) {
+              if (sliceAxis === "horizontal") {
+                const offset = idx % 2 === 0 ? -28 : 28;
+                cx = Math.max(halfW + 8, Math.min(canvasW - halfW - 8, rawCx + offset));
+                cy = Math.max(halfH + 8, Math.min(canvasH - halfH - 8, rawCy));
+              } else {
+                const offset = idx % 2 === 0 ? -18 : 18;
+                cx = Math.max(halfW + 8, Math.min(canvasW - halfW - 8, rawCx));
+                cy = Math.max(halfH + 8, Math.min(canvasH - halfH - 8, rawCy + offset));
+              }
+            } else {
+              cx = Math.max(halfW + 8, Math.min(canvasW - halfW - 8, rawCx));
+              cy = Math.max(halfH + 8, Math.min(canvasH - halfH - 8, rawCy));
+            }
+
+            const badgeX = cx - halfW;
+            const badgeY = cy - halfH;
             const shortName = getCleanShortName(parcel.crop.cropName);
 
             return (
@@ -718,22 +756,16 @@ export default function FarmParcelMap({
           })}
         </svg>
 
-        {/* Floating Acreage & Compass Badge */}
-        <div className="absolute top-3 left-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border-2 border-[var(--border-default)] shadow-md flex items-center gap-2">
-          <span className="text-lg">🧭</span>
-          <div>
-            <span className="text-[11px] uppercase tracking-wider font-extrabold text-[var(--text-muted)] block">
-              Field Parcel Layout
-            </span>
-            <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)]">
-              {allocations.length} Crop Zones · {totalAcres.toFixed(2)} Acres
-            </span>
-          </div>
+        {/* Sleek Floating Compass Pill (Ultra-compact so it never covers parcel corners) */}
+        <div className="absolute top-2.5 left-2.5 bg-black/70 dark:bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/15 shadow-sm flex items-center gap-1.5 pointer-events-none text-white text-[11px] font-bold">
+          <span>🧭 N</span>
+          <span className="text-white/30">•</span>
+          <span>{allocations.length} Crop Zones</span>
         </div>
 
         {/* Live Interactive Tip */}
-        <div className="absolute bottom-3 right-3 bg-black/75 text-white text-xs px-3 py-1.5 rounded-xl font-medium backdrop-blur-sm pointer-events-none hidden sm:block">
-          💡 Tap any crop parcel to view ICAR package of practices
+        <div className="absolute bottom-2.5 right-2.5 bg-black/70 dark:bg-black/85 text-white/90 text-[10.5px] px-2.5 py-1 rounded-xl font-semibold backdrop-blur-sm pointer-events-none hidden sm:block border border-white/15 shadow-sm">
+          💡 Tap parcel to view ICAR practices
         </div>
       </div>
 

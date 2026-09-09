@@ -13,8 +13,9 @@ import {
   type RiskAppetite,
   type ResourceLevel,
 } from "@/lib/portfolio-optimizer";
-import { type CropSeason } from "@/lib/crop-data";
+import { type CropSeason, type CropRecord } from "@/lib/crop-data";
 import { resolveDistrictFromCoords } from "@/lib/geo-service";
+import CropCompareCard from "@/features/recommendations/CropCompareCard";
 
 function formatCurrency(n: number) {
   return "₹" + Math.round(n).toLocaleString("en-IN");
@@ -327,6 +328,52 @@ export default function RecommendationDashboard() {
       ...prev,
       [cropId]: Math.max(0, Number(value.toFixed(2))),
     }));
+  }
+
+  function handleKeepFarmerCrop(farmerCrop: CropRecord) {
+    const isAlreadyInPortfolio = portfolio.allocations.some(
+      (a) => a.cropId === farmerCrop.id || a.cropSlug === farmerCrop.slug
+    );
+
+    if (isAlreadyInPortfolio) {
+      const dominantAcres = Number((totalLandAcres * 0.6).toFixed(2));
+      const remainingAcres = Math.max(0.1, Number((totalLandAcres - dominantAcres).toFixed(2)));
+      const otherCrops = portfolio.allocations.filter(
+        (a) => a.cropId !== farmerCrop.id && a.cropSlug !== farmerCrop.slug
+      );
+      const perOther = Number((remainingAcres / Math.max(1, otherCrops.length)).toFixed(2));
+
+      const newMap: Record<string, number> = {
+        [farmerCrop.id]: dominantAcres,
+      };
+      otherCrops.forEach((c) => {
+        newMap[c.cropId] = perOther;
+      });
+      setCustomAcres(newMap);
+      setSelectedCropId(farmerCrop.id);
+    } else {
+      const updated = optimizePortfolio({
+        totalLandAcres,
+        season,
+        riskAppetite,
+        waterAvailability,
+        investmentCapacity: "Medium",
+        userSoilType: soilType,
+        preferredCrops: [farmerCrop.name, farmerCrop.slug],
+      });
+      setPortfolio(updated);
+      setSelectedCropId(farmerCrop.id);
+      const newMap: Record<string, number> = {};
+      for (const item of updated.allocations) {
+        newMap[item.cropId] = item.allocatedAcres;
+      }
+      setCustomAcres(newMap);
+    }
+
+    setTimeout(() => {
+      const el = document.getElementById(`crop-card-${farmerCrop.id}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
   }
 
   function acceptRecommendation() {
@@ -813,6 +860,21 @@ export default function RecommendationDashboard() {
                 </div>
               </div>
             </section>
+
+            {/* Apni Fasal vs AI Fasal (Your Crop vs Our Recommendation) Comparison Module */}
+            <CropCompareCard
+              farmId={urlFarmId || undefined}
+              farmAreaAcres={totalLandAcres}
+              currentSeason={season}
+              riskAppetite={riskAppetite}
+              waterAvailability={waterAvailability}
+              onSelectAiCrop={(cropId) => {
+                setSelectedCropId(cropId);
+                const el = document.getElementById(`crop-card-${cropId}`);
+                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              onKeepFarmerCrop={handleKeepFarmerCrop}
+            />
 
             {/* 4. Single-Column Stack of Large Crop Cards */}
             <section className="agri-card p-6 sm:p-8 rounded-3xl border-2 space-y-6">

@@ -98,6 +98,7 @@ export default function FarmMapPicker({
     markerRef.current.addListener("dragend", () => {
       const pos = markerRef.current?.getPosition();
       if (pos) {
+        setFallbackCentroid(pos.toJSON());
         const points = polygonRef.current?.getPath().getArray().map((p) => p.toJSON()) || [];
         handleAreaUpdate(measuredAreaAcres, points, pos.toJSON());
       }
@@ -110,6 +111,7 @@ export default function FarmMapPicker({
     const acres = Math.max(0.05, sqMeters / 4046.8564224);
     const points = polygon.getPath().getArray().map((p) => p.toJSON());
     const center = markerRef.current?.getPosition()?.toJSON() || points[0] || defaultCenter;
+    setFallbackCentroid(center);
     handleAreaUpdate(acres, points, center);
     const ha = (acres / 2.47105).toFixed(2);
     const sqM = Math.round(sqMeters).toLocaleString();
@@ -136,14 +138,13 @@ export default function FarmMapPicker({
           `📍 Location Detected: ${districtInfo.district}, ${districtInfo.state} (${districtInfo.agroClimaticZone}) [${latitude.toFixed(4)}°N, ${longitude.toFixed(4)}°E]`
         );
         setFarmName(`${districtInfo.district} Farm Plot`);
+        setFallbackCentroid({ lat: latitude, lng: longitude });
 
         if (mapRef.current) {
           const pos = new google.maps.LatLng(latitude, longitude);
           mapRef.current.setCenter(pos);
           mapRef.current.setZoom(16);
           setMarker(pos);
-        } else {
-          setFallbackCentroid({ lat: latitude, lng: longitude });
         }
       },
       (err) => {
@@ -228,6 +229,7 @@ export default function FarmMapPicker({
           }
 
           setMarker(event.latLng);
+          setFallbackCentroid({ lat: event.latLng.lat(), lng: event.latLng.lng() });
           polygonRef.current?.setMap(null);
           draftPathRef.current = [event.latLng];
           draftPolylineRef.current?.setMap(null);
@@ -277,6 +279,7 @@ export default function FarmMapPicker({
               const dInfo = resolveDistrictFromCoords(lat, lng);
               setStatus(`Location found: ${place.name || dInfo.district} (${dInfo.state})`);
               setFarmName(`${place.name || dInfo.district} Plot`);
+              setFallbackCentroid({ lat, lng });
             }
           });
         }

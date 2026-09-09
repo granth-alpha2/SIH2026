@@ -216,7 +216,7 @@ export const OFFICIAL_MSP_CATALOG: MspRecord[] = [
   },
   {
     id: "MSP-2024-BARLEY",
-    cropId: "CROP008",
+    cropId: "CROP006",
     cropName: "Barley (Jau)",
     category: "Cereal",
     season: "Rabi",

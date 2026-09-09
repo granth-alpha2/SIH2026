@@ -140,7 +140,7 @@ export default function CropsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {crops.map((crop) => (
               <article
-                key={crop.id}
+                key={crop.id || crop.slug}
                 onClick={() => setActiveCrop(crop)}
                 className="agri-card p-5 hover:border-[var(--border-strong)] transition-all cursor-pointer flex flex-col justify-between space-y-4"
               >

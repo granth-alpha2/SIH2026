@@ -142,3 +142,24 @@ export async function deleteFarm(id: string): Promise<boolean> {
   const result = await pool.query(`DELETE FROM farms WHERE id = $1`, [id]);
   return (result.rowCount ?? 0) > 0;
 }
+
+export async function recordFarmerWishComparison(
+  farmId: string,
+  cropSlug: string,
+  comparisonSnapshot: unknown
+): Promise<void> {
+  const pool = getPool();
+  if (pool) {
+    try {
+      await pool.query(
+        `UPDATE farm_plans
+         SET farmer_wish_crop_slug = $1, farmer_wish_comparison_snapshot = $2
+         WHERE farm_id = $3`,
+        [cropSlug, JSON.stringify(comparisonSnapshot), farmId]
+      );
+    } catch {
+      // Non-blocking telemetry update
+    }
+  }
+}
+

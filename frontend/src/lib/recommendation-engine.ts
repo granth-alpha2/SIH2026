@@ -221,6 +221,86 @@ function generateCropExplanation(crop: CropRecord, score: number, factors: Facto
 }
 
 /**
+ * Deterministically score a single crop against farmer preferences, weather, and market conditions.
+ */
+export function scoreSingleCrop(
+  crop: CropRecord,
+  prefs: FarmerPreferenceRecord,
+  weather: AgriWeatherReport | undefined,
+  mandi: MandiPriceRecord | undefined,
+  allocatedAcres: number = 1.0
+): CropScoreOutput {
+  const activeMandi = mandi || MANDI_BENCHMARK_PRICES.find((m) => m.cropSlug === crop.slug || m.cropId === crop.id);
+
+  const weatherScore = computeWeatherSuitability(crop, weather, prefs.waterAvailability);
+  const marketScore = computeMarketOpportunity(crop, activeMandi);
+  const profitScore = computeProfitabilityScore(crop);
+  const mspScore = computeMspSafetyScore(crop);
+  const costFit = computeCostFit(crop, prefs.investmentCapacity);
+  const soilFit = computeSoilFit(crop, prefs.soilType, prefs.soilPh);
+
+  // Apply penalties for avoided crops or severe water mismatch
+  let riskPenalty = 0;
+  if (prefs.cropsToAvoid?.some((avoid) => crop.name.toLowerCase().includes(avoid.toLowerCase()))) {
+    riskPenalty += 50; // Heavy penalty if explicitly avoided
+  }
+  if (prefs.preferredCrops?.some((pref) => crop.name.toLowerCase().includes(pref.toLowerCase()))) {
+    riskPenalty -= 10; // Bonus if explicitly preferred
+  }
+
+  // Weighted composite calculation
+  const rawScore =
+    weatherScore * 0.25 +
+    marketScore * 0.20 +
+    profitScore * 0.20 +
+    mspScore * 0.15 +
+    costFit * 0.10 +
+    soilFit * 0.10 -
+    riskPenalty;
+
+  const finalScore = Math.min(98, Math.max(15, Math.round(rawScore)));
+
+  const financials = simulateCropFinancials({
+    areaAcres: Math.max(0.1, allocatedAcres),
+    expectedYieldQuintalsPerAcre: crop.yield.quintalsPerAcre,
+    expectedSellingPricePerQuintal: activeMandi?.modalPrice || crop.economics.typicalPricePerQuintal,
+    inputCostPerAcre: crop.costs.totalPerAcre,
+  });
+
+  const factors: FactorScores = {
+    weatherSuitability: Math.round(weatherScore),
+    marketOpportunity: Math.round(marketScore),
+    profitability: Math.round(profitScore),
+    mspSafety: Math.round(mspScore),
+    costFit: Math.round(costFit),
+    soilFit: Math.round(soilFit),
+    riskPenalty: Math.round(Math.max(0, riskPenalty)),
+  };
+
+  const explanation = generateCropExplanation(crop, finalScore, factors, activeMandi);
+  const confidence = Number((0.78 + (finalScore / 100) * 0.15).toFixed(2));
+
+  return {
+    cropId: crop.id,
+    slug: crop.slug,
+    cropName: crop.name,
+    hindiName: crop.hindiName,
+    category: crop.category,
+    season: crop.season,
+    score: finalScore,
+    financials,
+    factors,
+    breakEven: {
+      pricePerQuintal: financials.breakEvenPricePerQuintal,
+      yieldQuintalsPerAcre: financials.breakEvenYieldQuintalsPerAcre,
+    },
+    risks: crop.riskFactors,
+    explanation,
+    confidence,
+  };
+}
+
+/**
  * Run deterministic multi-crop recommendation engine
  */
 export function generateRecommendations(input: RecommendationInput): RecommendationPortfolio {
@@ -236,73 +316,7 @@ export function generateRecommendations(input: RecommendationInput): Recommendat
 
   const scoredCrops: CropScoreOutput[] = candidateCrops.map((crop) => {
     const mandi = MANDI_BENCHMARK_PRICES.find((m) => m.cropSlug === crop.slug || m.cropId === crop.id);
-
-    const weatherScore = computeWeatherSuitability(crop, weather, prefs.waterAvailability);
-    const marketScore = computeMarketOpportunity(crop, mandi);
-    const profitScore = computeProfitabilityScore(crop);
-    const mspScore = computeMspSafetyScore(crop);
-    const costFit = computeCostFit(crop, prefs.investmentCapacity);
-    const soilFit = computeSoilFit(crop, prefs.soilType, prefs.soilPh);
-
-    // Apply penalties for avoided crops or severe water mismatch
-    let riskPenalty = 0;
-    if (prefs.cropsToAvoid?.some((avoid) => crop.name.toLowerCase().includes(avoid.toLowerCase()))) {
-      riskPenalty += 50; // Heavy penalty if explicitly avoided
-    }
-    if (prefs.preferredCrops?.some((pref) => crop.name.toLowerCase().includes(pref.toLowerCase()))) {
-      riskPenalty -= 10; // Bonus if explicitly preferred
-    }
-
-    // Weighted composite calculation
-    const rawScore =
-      weatherScore * 0.25 +
-      marketScore * 0.20 +
-      profitScore * 0.20 +
-      mspScore * 0.15 +
-      costFit * 0.10 +
-      soilFit * 0.10 -
-      riskPenalty;
-
-    const finalScore = Math.min(98, Math.max(15, Math.round(rawScore)));
-
-    const financials = simulateCropFinancials({
-      areaAcres: 1.0,
-      expectedYieldQuintalsPerAcre: crop.yield.quintalsPerAcre,
-      expectedSellingPricePerQuintal: mandi?.modalPrice || crop.economics.typicalPricePerQuintal,
-      inputCostPerAcre: crop.costs.totalPerAcre,
-    });
-
-    const factors: FactorScores = {
-      weatherSuitability: Math.round(weatherScore),
-      marketOpportunity: Math.round(marketScore),
-      profitability: Math.round(profitScore),
-      mspSafety: Math.round(mspScore),
-      costFit: Math.round(costFit),
-      soilFit: Math.round(soilFit),
-      riskPenalty: Math.round(Math.max(0, riskPenalty)),
-    };
-
-    const explanation = generateCropExplanation(crop, finalScore, factors, mandi);
-    const confidence = Number((0.78 + (finalScore / 100) * 0.15).toFixed(2));
-
-    return {
-      cropId: crop.id,
-      slug: crop.slug,
-      cropName: crop.name,
-      hindiName: crop.hindiName,
-      category: crop.category,
-      season: crop.season,
-      score: finalScore,
-      financials,
-      factors,
-      breakEven: {
-        pricePerQuintal: financials.breakEvenPricePerQuintal,
-        yieldQuintalsPerAcre: financials.breakEvenYieldQuintalsPerAcre,
-      },
-      risks: crop.riskFactors,
-      explanation,
-      confidence,
-    };
+    return scoreSingleCrop(crop, prefs, weather, mandi, 1.0);
   });
 
   // Sort candidate crops by deterministic score descending

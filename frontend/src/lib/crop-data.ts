@@ -479,7 +479,7 @@ export const CROP_DATABASE: CropRecord[] = [
     },
   },
   {
-    id: "CROP008",
+    id: "CROP006",
     slug: "barley",
     name: "Barley (Jau)",
     hindiName: "जौ",
